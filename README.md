@@ -18,6 +18,17 @@ The Tune workspace provides preparation and review workflows. BimmerScope does n
 
 Prerequisites: Flutter 3.38 or newer, Rust, and the relevant platform toolchain.
 
+The v1.1.12 Tune Windows x64 release bundle is checked in at
+[`dist/windows-x64/BimmerScope-v1.1.12-experimental.1+99-windows-x64`](dist/windows-x64/BimmerScope-v1.1.12-experimental.1%2B99-windows-x64).
+Launch `BimmerScope.exe` from that folder; keep the adjacent DLLs and `data/`
+directory with it. The bundle was produced with:
+
+```powershell
+flutter build windows --release --dart-define=BIMMERSCOPE_EDITION=tune
+```
+
+The executable SHA-256 is `67B9EE9E26457B2C390F944075113427EE44F7EA2A43DAF26C8E33B98FA8343C`.
+
 ```powershell
 flutter pub get
 flutter_rust_bridge_codegen generate
