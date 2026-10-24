@@ -1,6 +1,6 @@
 # BimmerScope
 
-Experimental Flutter application with a Rust protocol core for BMW F-series vehicles over ENET/HSFZ. The current workspace is **1.1.11-experimental.1+91**. Version and APK naming rules are in [VERSIONING.md](VERSIONING.md).
+Experimental Flutter application with a Rust protocol core for BMW F-series vehicles over ENET/HSFZ. The current workspace is **1.1.12-experimental.1+99**. Version and APK naming rules are in [VERSIONING.md](VERSIONING.md).
 
 ## Current scope
 
@@ -34,7 +34,7 @@ flutter analyze
 flutter test
 ```
 
-At the time this repository was created, Rust tests passed **77/77** and Flutter analysis reported no issues. Flutter tests had **75 passing and one failing**: a dashboard button width assertion differs by 2 pixels (`734` expected, `736` actual). No v1.1.11+91 APK or real-vehicle acceptance is claimed.
+At the time the v1.1.11 source snapshot was created, Rust tests passed **77/77** and Flutter analysis reported no issues. Flutter tests had **75 passing and one failing**: a dashboard button width assertion differs by 2 pixels (`734` expected, `736` actual). No v1.1.12+99 APK or real-vehicle acceptance is claimed.
 
 ## Architecture
 
