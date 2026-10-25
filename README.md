@@ -1,6 +1,6 @@
 # BimmerScope
 
-Experimental Flutter application with a Rust protocol core for BMW F-series vehicles over ENET/HSFZ. The current workspace is **1.1.12-experimental.1+99**. Version and APK naming rules are in [VERSIONING.md](VERSIONING.md).
+Experimental Flutter application with a Rust protocol core for BMW F-series vehicles over ENET/HSFZ. The current workspace is **1.1.12-experimental.1+100**. Version and APK naming rules are in [VERSIONING.md](VERSIONING.md).
 
 ## Current scope
 
@@ -19,7 +19,7 @@ The Tune workspace provides preparation and review workflows. BimmerScope does n
 Prerequisites: Flutter 3.38 or newer, Rust, and the relevant platform toolchain.
 
 The v1.1.12 Tune Windows x64 release bundle is checked in at
-[`dist/windows-x64/BimmerScope-v1.1.12-experimental.1+99-windows-x64`](dist/windows-x64/BimmerScope-v1.1.12-experimental.1%2B99-windows-x64).
+[`dist/windows-x64/BimmerScope-v1.1.12-experimental.1+100-windows-x64`](dist/windows-x64/BimmerScope-v1.1.12-experimental.1%2B100-windows-x64).
 Launch `BimmerScope.exe` from that folder; keep the adjacent DLLs and `data/`
 directory with it. The bundle was produced with:
 
@@ -27,7 +27,10 @@ directory with it. The bundle was produced with:
 flutter build windows --release --dart-define=BIMMERSCOPE_EDITION=tune
 ```
 
-The executable SHA-256 is `67B9EE9E26457B2C390F944075113427EE44F7EA2A43DAF26C8E33B98FA8343C`.
+The executable SHA-256 is `098A91156880607A8560768A1D3786EBF06BD4B3CA5E458258A0D3B00033DEB9`.
+
+This bundle includes the reported FEM and gateway DTC definitions: CD1412,
+D917A0, 03001E, 03009E, 8040A0, D9040A, D91C86, D91C89, D9201E, and CD040A.
 
 ```powershell
 flutter pub get

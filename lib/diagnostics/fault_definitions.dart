@@ -85,6 +85,12 @@ const _definitions = <String, FaultDefinition>{
     explanation:
         'A second passenger-window Hall-sensor input is reporting a broken or interrupted circuit.',
   ),
+  '03009E': FaultDefinition(
+    title: 'Front passenger window relay supply voltage missing',
+    system: 'Body electronics / FEM / power windows',
+    explanation:
+        'The FEM reports no input voltage at the front-passenger-door power-window relay. Check the relevant power supply, fuse, wiring, and connector before considering a relay or FEM fault; this code alone does not identify which part caused the missing voltage.',
+  ),
   '0300A0': FaultDefinition(
     title: 'Front passenger window needs normalization',
     system: 'Body electronics / FEM',
@@ -120,6 +126,12 @@ const _definitions = <String, FaultDefinition>{
     system: 'Power distribution / FEM',
     explanation:
         'The FEM did not detect the expected supply voltage on the Terminal 30L2 circuit.',
+  ),
+  '8040A0': FaultDefinition(
+    title: 'Front Terminal 30F supply cannot be activated',
+    system: 'Power distribution / FEM',
+    explanation:
+        'The FEM could not switch on the front Terminal 30F power supply because it detected a short circuit to ground. Check the affected supply circuit and connected loads; the code alone does not identify the shorted wire or component.',
   ),
   '80409A': FaultDefinition(
     title: 'Terminal 15N1 driver: open circuit or short to positive',
@@ -479,6 +491,12 @@ const _definitions = <String, FaultDefinition>{
     explanation:
         'The FEM did not receive the LCD brightness-control message from the instrument cluster.',
   ),
+  'D917A0': FaultDefinition(
+    title: 'Vehicle-status CAN message timed out',
+    system: 'Body electronics / vehicle-status network',
+    explanation:
+        'The FEM did not receive the vehicle-status CAN message (FZZSTD) within the expected time. This is a communication timeout and does not by itself identify the transmitting control unit or prove that the FEM has failed.',
+  ),
   'D917A7': FaultDefinition(
     title: 'Driving-dynamics switch configuration missing',
     system: 'Body electronics / driving-mode controls',
@@ -502,6 +520,18 @@ const _definitions = <String, FaultDefinition>{
     system: 'Body electronics / chassis network',
     explanation:
         'The FEM did not receive the filtered vehicle ride-height message from the chassis controller.',
+  ),
+  'D91C86': FaultDefinition(
+    title: 'Functional-safety status CAN message timed out',
+    system: 'Body electronics / vehicle network',
+    explanation:
+        'The body controller did not receive the functional-safety status message (ST_FSFY) within the expected time. This is a network communication timeout; the code alone does not identify the transmitting module or establish a specific repair.',
+  ),
+  'D91C89': FaultDefinition(
+    title: 'Functional-safety monitoring status message timed out',
+    system: 'Body electronics / vehicle network',
+    explanation:
+        'The body controller did not receive the functional-safety monitoring status message (ST_MONI_FSFY) within the expected time. This is a network communication timeout; the code alone does not identify the transmitting module or establish a specific repair.',
   ),
   'D91CEC': FaultDefinition(
     title: 'Central-locking door status not received',
@@ -545,11 +575,29 @@ const _definitions = <String, FaultDefinition>{
     explanation:
         'The FEM did not receive drivetrain-data message 2 (ID 230.0.2) from the DME/DDE. This is distinct from the 0x3F9 message reported by D917F9.',
   ),
+  'D9201E': FaultDefinition(
+    title: 'Power-management gateway status message timed out',
+    system: 'Body electronics / power-management network',
+    explanation:
+        'The FEM did not receive the power-management gateway status message (ST_PWMG_GW) within the expected time. This is a communication timeout and does not by itself identify the transmitter or prove that a specific module has failed.',
+  ),
+  'D9040A': FaultDefinition(
+    title: 'Powertrain CAN communication fault',
+    system: 'Body electronics / FEM / powertrain network',
+    explanation:
+        'The FEM reports a communication fault on the powertrain CAN bus. This can indicate that a control unit or bus segment stopped communicating, but the code alone does not identify the cause or a failed module. Review related communication faults and the vehicle-specific ISTA test plan.',
+  ),
   'CD0420': FaultDefinition(
     title: 'Gateway detected a FlexRay signalling fault',
     system: 'Central gateway / FlexRay',
     explanation:
         'The central gateway recorded a fault in FlexRay controller signalling; this can accompany loss of communication with other control units.',
+  ),
+  'CD040A': FaultDefinition(
+    title: 'Powertrain CAN communication fault',
+    system: 'Central gateway / powertrain network',
+    explanation:
+        'The central gateway (ZGM) reports a communication fault on the powertrain CAN bus. This can indicate a network interruption or a control unit that stopped communicating; the code alone does not identify the cause or a failed module.',
   ),
   'CD0487': FaultDefinition(
     title: 'FlexRay synchronisation failed',
@@ -564,10 +612,10 @@ const _definitions = <String, FaultDefinition>{
         'The ZGM rejected or flagged the system-time message sent by the instrument cluster (KOMBI).',
   ),
   'CD1412': FaultDefinition(
-    title: 'Power-supply shutdown timing signal missing or invalid',
+    title: 'Power-supply run-on-time signal missing or invalid',
     system: 'Central gateway / power management',
     explanation:
-        'The central gateway did not receive a valid power-supply run-on-time signal in CAN message 0x3BE. This is a communication or signal-validity fault; it does not by itself identify a failed gateway or power-supply component.',
+        'The central gateway (ZGM) did not receive a valid power-supply run-on-time signal in CAN message 0x3BE. This is a communication or signal-validity fault; it does not by itself identify a failed gateway or power-supply component.',
   ),
   '03000E': FaultDefinition(
     title: 'Driver window circuit: electrical path interrupted',
@@ -580,6 +628,12 @@ const _definitions = <String, FaultDefinition>{
     system: 'Body electronics / FEM',
     explanation:
         'The driver-side window system has an intermittent or open electrical connection reported to the FEM.',
+  ),
+  '03001E': FaultDefinition(
+    title: 'Driver window relay supply voltage missing',
+    system: 'Body electronics / FEM / power windows',
+    explanation:
+        'The FEM reports no input voltage at the driver-door power-window relay. Check the relevant power supply, fuse, wiring, and connector before considering a relay or FEM fault; this code alone does not identify which part caused the missing voltage.',
   ),
   '030020': FaultDefinition(
     title: 'Driver window requires initialization',
