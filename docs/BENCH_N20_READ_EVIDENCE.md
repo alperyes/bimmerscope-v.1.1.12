@@ -10,6 +10,16 @@ remain in the user's Downloads folder and are not committed here.
 - BIN header marker at byte 26: `MEVD1729__`
 - PCAP: 235 TCP packets, with HSFZ traffic on port 6801 over two flows.
 
+## Filename token comparison
+
+The current F101 bundle is decoded by the Rust identity path as DME software
+`00001C9F029150001`. Its three decimal version bytes (`029`, `150`, `001`)
+convert back to raw bytes `1D 96 01` using the existing DME identifier helper.
+That yields compact token `00001C9F1D9601`, matching the BIN filename/CSV token.
+This confirms the token corresponds to the observed software-ID representation
+for this captured bench identity. It does not establish that the BIN contents
+were read from the ECU, nor that the BIN is a valid or compatible calibration.
+
 The observed DME traffic includes VIN and identifier reads, routines `0x0205`,
 and three short UDS `0x23` memory probes, repeated on the second connection.
 The probes request 16 or 64 bytes at specific addresses and receive `0x63`

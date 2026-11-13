@@ -4,10 +4,19 @@ import 'package:bmw_app/onboarding/connection_guide_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:bmw_app/src/rust/api/vehicle.dart' as vehicle;
 
 class BmwEnetApp extends StatefulWidget {
-  const BmwEnetApp({super.key, this.previewMode = false});
+  const BmwEnetApp({
+    super.key,
+    this.previewMode = false,
+    this.startupSafetyReport,
+    this.safetyRoot,
+  });
   final bool previewMode;
+  final Map<String, dynamic>? startupSafetyReport;
+  final String? safetyRoot;
 
   @override
   State<BmwEnetApp> createState() => _BmwEnetAppState();
@@ -17,16 +26,113 @@ class _BmwEnetAppState extends State<BmwEnetApp> {
   ThemeMode mode = ThemeMode.dark;
   bool onboardingLoaded = false;
   bool onboardingComplete = false;
+  Map<String, dynamic>? safetyReport;
+  bool safetyChecking = false;
 
   @override
   void initState() {
     super.initState();
+    safetyReport = widget.startupSafetyReport;
     if (widget.previewMode) {
       onboardingLoaded = true;
       onboardingComplete = true;
     } else {
       loadOnboarding();
     }
+  }
+
+  Future<void> recheckSafety() async {
+    if (safetyChecking || widget.safetyRoot == null) return;
+    setState(() => safetyChecking = true);
+    try {
+      final report =
+          jsonDecode(
+                await vehicle.initializeVehicleSafety(
+                  rootDirectory: widget.safetyRoot!,
+                ),
+              )
+              as Map<String, dynamic>;
+      if (mounted) setState(() => safetyReport = report);
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => safetyReport = {
+            'blocked': true,
+            'detail': 'Evidence inspection failed: $error',
+          },
+        );
+      }
+    } finally {
+      if (mounted) setState(() => safetyChecking = false);
+    }
+  }
+
+  Widget safetyNotice(BuildContext context, Widget? child) {
+    if (safetyReport == null || safetyReport!['blocked'] == false) {
+      return child ?? const SizedBox.shrink();
+    }
+    final operations = safetyReport!['operations'];
+    final paths = operations is List
+        ? operations
+              .take(3)
+              .map(
+                (entry) =>
+                    entry is Map ? entry['directory']?.toString() ?? '' : '',
+              )
+              .where((path) => path.isNotEmpty)
+              .join('\n')
+        : '';
+    return Column(
+      children: [
+        Material(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.pause_circle_outline),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 140),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Vehicle access paused',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              safetyReport!['detail']?.toString() ??
+                                  'Saved flash/recovery evidence requires review.',
+                            ),
+                            const Text(
+                              'Offline pages remain available. Rechecking does not approve recovery or ECU writing.',
+                            ),
+                            if (paths.isNotEmpty) SelectableText(paths),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: safetyChecking || widget.safetyRoot == null
+                        ? null
+                        : recheckSafety,
+                    child: Text(safetyChecking ? 'Checking…' : 'Recheck'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Expanded(child: child ?? const SizedBox.shrink()),
+      ],
+    );
   }
 
   Future<void> loadOnboarding() async {
@@ -56,6 +162,7 @@ class _BmwEnetAppState extends State<BmwEnetApp> {
     themeAnimationCurve: Curves.easeOut,
     theme: _theme(Brightness.light),
     darkTheme: _theme(Brightness.dark),
+    builder: safetyNotice,
     home: !onboardingLoaded
         ? _LoadingScreen(isDark: mode == ThemeMode.dark)
         : onboardingComplete

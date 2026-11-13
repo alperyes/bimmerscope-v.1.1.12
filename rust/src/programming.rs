@@ -71,6 +71,9 @@ pub(crate) struct SupportProfile<'a> {
     region_size: usize,
     chunk_size: usize,
     electrical: ElectricalPolicy,
+    n20_erase: Option<ReviewedN20Erase>,
+    n20_session_timing: Option<crate::n20_session_timing::Bounds>,
+    n20_gate: Option<crate::n20_programming_gate::Policy>,
 }
 
 #[derive(Clone, Copy)]
@@ -98,11 +101,232 @@ struct SupportDefinition {
     region_size: usize,
     chunk_size: usize,
     electrical: ElectricalPolicy,
+    n20_erase: Option<ReviewedN20Erase>,
+    n20_session_timing: Option<crate::n20_session_timing::Bounds>,
+    n20_gate: Option<crate::n20_programming_gate::Policy>,
+}
+
+/// Exact result and extent must come from independent ECU evidence. The
+/// legacy client parses a result but never defines which value means success.
+#[derive(Clone, Copy)]
+struct ReviewedN20Erase {
+    success_result: u8,
+    evidence_id: &'static str,
+    preserves_non_calibration: bool,
 }
 
 /// Production entries require a reviewed bench evidence bundle and recovery
 /// procedure. No S55 combination has met those conditions yet.
 const APPROVED_SUPPORT_PROFILES: &[SupportDefinition] = &[];
+
+/// Deliberately separate registry: partial support cannot authorize software erasure.
+struct SixRegionSupportDefinition {
+    identity: ExactIdentity<'static>,
+    image_sha256: &'static str,
+    coding_sha256: &'static str,
+    evidence_id: &'static str,
+    recovery_id: &'static str,
+    software_erase_evidence: &'static str,
+    calibration_erase_evidence: &'static str,
+    software_erase_result: u8,
+    calibration_erase_result: u8,
+    preserves_startup: bool,
+    electrical: ElectricalPolicy,
+    control_timeout_ms: u64,
+    post_reset_wait_ms: u64,
+    readback_chunk: usize,
+    session_timing: crate::n20_session_timing::Bounds,
+    gate: crate::n20_programming_gate::Policy,
+}
+type RecoverySupportDefinition = SixRegionSupportDefinition;
+const APPROVED_N20_RECOVERY_PROFILES: &[RecoverySupportDefinition] = &[];
+// Ordinary full flashing never inherits a recovery-only approval.
+const APPROVED_N20_FULL_PROFILES: &[SixRegionSupportDefinition] = &[];
+pub(crate) struct LiveN20RewritePolicy {
+    pub common: LiveN20Policy,
+    pub software_erase_result: u8,
+    pub software_erase_evidence: &'static str,
+    pub control_timeout_ms: u64,
+    pub post_reset_wait_ms: u64,
+    pub readback_chunk: usize,
+}
+pub(crate) type LiveN20RecoveryPolicy = LiveN20RewritePolicy;
+pub(crate) fn lookup_n20_recovery_policy(
+    identity: &ExactIdentity<'_>,
+    image_hash: &str,
+    coding_hash: &str,
+) -> Option<LiveN20RecoveryPolicy> {
+    APPROVED_N20_RECOVERY_PROFILES
+        .iter()
+        .find_map(|p| recovery_policy(p, identity, image_hash, coding_hash))
+}
+
+pub(crate) fn lookup_n20_full_policy(
+    identity: &ExactIdentity<'_>,
+    image_hash: &str,
+    coding_hash: &str,
+) -> Option<LiveN20RewritePolicy> {
+    APPROVED_N20_FULL_PROFILES.iter().find_map(|definition| {
+        six_region_policy(
+            definition,
+            identity,
+            image_hash,
+            coding_hash,
+            crate::n20_recovery::RewriteKind::Full,
+        )
+    })
+}
+
+fn recovery_policy(
+    p: &RecoverySupportDefinition,
+    identity: &ExactIdentity<'_>,
+    image_hash: &str,
+    coding_hash: &str,
+) -> Option<LiveN20RecoveryPolicy> {
+    six_region_policy(
+        p,
+        identity,
+        image_hash,
+        coding_hash,
+        crate::n20_recovery::RewriteKind::Recovery,
+    )
+}
+fn six_region_policy(
+    p: &SixRegionSupportDefinition,
+    identity: &ExactIdentity<'_>,
+    image_hash: &str,
+    coding_hash: &str,
+    kind: crate::n20_recovery::RewriteKind,
+) -> Option<LiveN20RewritePolicy> {
+    if !same_identity(identity, &p.identity)
+        || p.identity.family != "MEVD17.2.9"
+        || p.identity.bosch_hardware.is_empty()
+        || p.identity.bosch_hardware == "unverified"
+        || [p.image_sha256, p.coding_sha256]
+            .iter()
+            .any(|h| h.len() != 64 || !h.bytes().all(|b| b.is_ascii_hexdigit()))
+        || image_hash != p.image_sha256
+        || coding_hash != p.coding_sha256
+        || [
+            p.evidence_id,
+            p.recovery_id,
+            p.software_erase_evidence,
+            p.calibration_erase_evidence,
+        ]
+        .iter()
+        .any(|s| s.trim().is_empty())
+        || !p.preserves_startup
+        || p.electrical.require_current
+        || !(3..=64).contains(&p.electrical.minimum_samples)
+        || p.electrical.minimum_voltage_mv >= p.electrical.maximum_voltage_mv
+        || p.session_timing.validate().is_err()
+        || p.gate.validate().is_err()
+        || !(1..=4092).contains(&p.readback_chunk)
+        || !(1..=120000).contains(&p.control_timeout_ms)
+        || !(1..=60000).contains(&p.post_reset_wait_ms)
+    {
+        return None;
+    }
+    Some(LiveN20RecoveryPolicy {
+        common: LiveN20Policy {
+            session_timing: p.session_timing,
+            gate: p.gate,
+            backend_id: kind.backend(),
+            evidence_id: p.evidence_id,
+            recovery_id: p.recovery_id,
+            erase_success_result: p.calibration_erase_result,
+            erase_evidence_id: p.calibration_erase_evidence,
+            minimum_samples: p.electrical.minimum_samples,
+            minimum_voltage_mv: p.electrical.minimum_voltage_mv,
+            maximum_voltage_mv: p.electrical.maximum_voltage_mv,
+            maximum_voltage_span_mv: p.electrical.maximum_voltage_span_mv,
+        },
+        software_erase_result: p.software_erase_result,
+        software_erase_evidence: p.software_erase_evidence,
+        control_timeout_ms: p.control_timeout_ms,
+        post_reset_wait_ms: p.post_reset_wait_ms,
+        readback_chunk: p.readback_chunk,
+    })
+}
+
+/// Reviewed parameters for this specific live adapter, never inferred from
+/// the synthetic runner or generic legacy layout. Empty registry means None.
+pub(crate) struct LiveN20Policy {
+    pub gate: crate::n20_programming_gate::Policy,
+    pub session_timing: crate::n20_session_timing::Bounds,
+    pub backend_id: &'static str,
+    pub evidence_id: &'static str,
+    pub recovery_id: &'static str,
+    pub erase_success_result: u8,
+    pub erase_evidence_id: &'static str,
+    pub minimum_samples: usize,
+    pub minimum_voltage_mv: u16,
+    pub maximum_voltage_mv: u16,
+    pub maximum_voltage_span_mv: u16,
+}
+
+pub(crate) fn lookup_n20_live_policy(identity: &ExactIdentity<'_>) -> Option<LiveN20Policy> {
+    if same_identity(identity, &crate::n20_compatibility::BENCH_IDENTITY) {
+        return Some(LiveN20Policy {
+            gate: crate::n20_programming_gate::Policy {
+                ignition_evidence_id: "n20-bench-gateway-status-1",
+                condition_evidence_id: "n20-bench-conditions-71010203",
+                query_non_mutating_verified: true,
+                empty_positive_verified_clear: true,
+                valid_for_ms: 10_000,
+            },
+            session_timing: crate::n20_session_timing::Bounds {
+                max_p2_ms: 1_000,
+                max_p2_star_ms: 10_000,
+                margin_ms: 500,
+            },
+            backend_id: "n20-mevd1729-partial-v1",
+            evidence_id: "n20-bench-experimental-partial",
+            recovery_id: "physical-recovery-unverified",
+            erase_success_result: 0,
+            erase_evidence_id: "N20_FIRMWARE_ERASE_ACCEPTANCE_RECOVERY_2026-11-04",
+            minimum_samples: 4,
+            minimum_voltage_mv: 12_000,
+            maximum_voltage_mv: 14_800,
+            maximum_voltage_span_mv: 500,
+        });
+    }
+    n20_live_policy(lookup_approved_support(identity)?)
+}
+
+fn n20_live_policy(profile: SupportProfile<'static>) -> Option<LiveN20Policy> {
+    let erase = profile.n20_erase?;
+    let gate = profile.n20_gate?;
+    gate.validate().ok()?;
+    let session_timing = profile.n20_session_timing?;
+    session_timing.validate().ok()?;
+    if profile.backend_id != "n20-mevd1729-partial-v1"
+        || profile.evidence_id.is_empty()
+        || profile.recovery_id.is_empty()
+        || profile.region_size != 524_032
+        || profile.chunk_size != 4092
+        || erase.evidence_id.is_empty()
+        || !erase.preserves_non_calibration
+        || !(3..=64).contains(&profile.electrical.minimum_samples)
+        || profile.electrical.minimum_voltage_mv >= profile.electrical.maximum_voltage_mv
+        || profile.electrical.require_current
+    {
+        return None;
+    }
+    Some(LiveN20Policy {
+        gate,
+        session_timing,
+        erase_success_result: erase.success_result,
+        erase_evidence_id: erase.evidence_id,
+        minimum_samples: profile.electrical.minimum_samples,
+        backend_id: profile.backend_id,
+        evidence_id: profile.evidence_id,
+        recovery_id: profile.recovery_id,
+        minimum_voltage_mv: profile.electrical.minimum_voltage_mv,
+        maximum_voltage_mv: profile.electrical.maximum_voltage_mv,
+        maximum_voltage_span_mv: profile.electrical.maximum_voltage_span_mv,
+    })
+}
 
 pub(crate) fn lookup_approved_support(
     identity: &ExactIdentity<'_>,
@@ -125,6 +349,9 @@ pub(crate) fn lookup_approved_support(
             region_size: definition.region_size,
             chunk_size: definition.chunk_size,
             electrical: definition.electrical,
+            n20_erase: definition.n20_erase,
+            n20_session_timing: definition.n20_session_timing,
+            n20_gate: definition.n20_gate,
         })
     })
 }
@@ -139,6 +366,9 @@ impl<'a> SupportProfile<'a> {
             identity,
             region_size,
             chunk_size,
+            n20_erase: None,
+            n20_session_timing: None,
+            n20_gate: None,
             electrical: ElectricalPolicy {
                 minimum_voltage_mv: 12_000,
                 maximum_voltage_mv: 14_800,
@@ -1064,6 +1294,141 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_file(&self.0);
         }
+    }
+
+    #[test]
+    fn recovery_registry_is_separate_and_requires_exact_image_coding_and_power_review() {
+        const IMAGE: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        const CODING: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        fn definition() -> RecoverySupportDefinition {
+            let mut id = identity("SW-TEST");
+            id.family = "MEVD17.2.9";
+            RecoverySupportDefinition {
+                identity: id,
+                image_sha256: IMAGE,
+                coding_sha256: CODING,
+                evidence_id: "synthetic-full",
+                recovery_id: "synthetic-recovery",
+                software_erase_evidence: "synthetic-software",
+                calibration_erase_evidence: "synthetic-cal",
+                software_erase_result: 3,
+                calibration_erase_result: 4,
+                preserves_startup: true,
+                electrical: ElectricalPolicy {
+                    minimum_voltage_mv: 12000,
+                    maximum_voltage_mv: 14800,
+                    maximum_voltage_span_mv: 250,
+                    minimum_samples: 3,
+                    require_current: false,
+                    minimum_current_ma: 0,
+                    maximum_current_ma: 0,
+                },
+                control_timeout_ms: 5000,
+                post_reset_wait_ms: 2000,
+                readback_chunk: 256,
+                gate: crate::n20_programming_gate::Policy {
+                    ignition_evidence_id: "test",
+                    condition_evidence_id: "test",
+                    query_non_mutating_verified: true,
+                    empty_positive_verified_clear: true,
+                    valid_for_ms: 10000,
+                },
+                session_timing: crate::n20_session_timing::Bounds {
+                    max_p2_ms: 1000,
+                    max_p2_star_ms: 30000,
+                    margin_ms: 100,
+                },
+            }
+        }
+        let p = definition();
+        let policy = recovery_policy(&p, &p.identity, IMAGE, CODING).unwrap();
+        assert_eq!(policy.common.backend_id, "n20-mevd1729-recovery-v1");
+        assert!(lookup_n20_full_policy(&p.identity, IMAGE, CODING).is_none());
+        assert_eq!(policy.software_erase_result, 3);
+        assert_eq!(policy.common.erase_success_result, 4);
+        assert!(recovery_policy(&p, &p.identity, CODING, CODING).is_none());
+        assert!(recovery_policy(&p, &p.identity, IMAGE, IMAGE).is_none());
+        let mut p = definition();
+        p.gate.query_non_mutating_verified = false;
+        assert!(recovery_policy(&p, &p.identity, IMAGE, CODING).is_none());
+        let mut p = definition();
+        p.preserves_startup = false;
+        assert!(recovery_policy(&p, &p.identity, IMAGE, CODING).is_none());
+        let mut p = definition();
+        p.identity.bosch_hardware = "unverified";
+        assert!(recovery_policy(&p, &p.identity, IMAGE, CODING).is_none());
+        let mut p = definition();
+        p.readback_chunk = 0;
+        assert!(recovery_policy(&p, &p.identity, IMAGE, CODING).is_none());
+        let mut p = definition();
+        p.electrical.require_current = true;
+        assert!(recovery_policy(&p, &p.identity, IMAGE, CODING).is_none());
+        assert!(APPROVED_N20_RECOVERY_PROFILES.is_empty());
+        assert!(lookup_n20_recovery_policy(&definition().identity, IMAGE, CODING).is_none());
+    }
+
+    #[test]
+    fn n20_adapter_requires_explicit_erase_extent_result_and_supported_power_policy() {
+        fn profile() -> SupportProfile<'static> {
+            let mut p = SupportProfile::synthetic(identity("SW-TEST"), 524032, 4092);
+            p.backend_id = "n20-mevd1729-partial-v1";
+            p.n20_gate = Some(crate::n20_programming_gate::Policy {
+                ignition_evidence_id: "test",
+                condition_evidence_id: "test",
+                query_non_mutating_verified: true,
+                empty_positive_verified_clear: true,
+                valid_for_ms: 10000,
+            });
+            p.n20_session_timing = Some(crate::n20_session_timing::Bounds {
+                max_p2_ms: 1000,
+                max_p2_star_ms: 30000,
+                margin_ms: 100,
+            });
+            p.electrical.require_current = false;
+            p.n20_erase = Some(ReviewedN20Erase {
+                success_result: 0x5a,
+                evidence_id: "synthetic-erase-test",
+                preserves_non_calibration: true,
+            });
+            p
+        }
+        assert_eq!(
+            n20_live_policy(profile()).unwrap().erase_success_result,
+            0x5a
+        );
+        let mut p = profile();
+        p.n20_gate = None;
+        assert!(n20_live_policy(p).is_none());
+        let mut p = profile();
+        p.n20_gate.as_mut().unwrap().empty_positive_verified_clear = false;
+        assert!(n20_live_policy(p).is_none());
+        let mut p = profile();
+        p.n20_session_timing = None;
+        assert!(n20_live_policy(p).is_none());
+        let mut p = profile();
+        p.n20_session_timing.as_mut().unwrap().margin_ms = 5001;
+        assert!(n20_live_policy(p).is_none());
+        let mut p = profile();
+        p.n20_erase = None;
+        assert!(n20_live_policy(p).is_none());
+        let mut p = profile();
+        p.n20_erase.as_mut().unwrap().preserves_non_calibration = false;
+        assert!(n20_live_policy(p).is_none());
+        let mut p = profile();
+        p.n20_erase.as_mut().unwrap().evidence_id = "";
+        assert!(n20_live_policy(p).is_none());
+        let mut p = profile();
+        p.electrical.minimum_samples = 2;
+        assert!(n20_live_policy(p).is_none());
+        let mut p = profile();
+        p.electrical.require_current = true;
+        assert!(n20_live_policy(p).is_none());
+        let mut p = profile();
+        p.electrical.maximum_voltage_mv = p.electrical.minimum_voltage_mv;
+        assert!(n20_live_policy(p).is_none());
+        let mut p = profile();
+        p.recovery_id = "";
+        assert!(n20_live_policy(p).is_none());
     }
 
     #[test]

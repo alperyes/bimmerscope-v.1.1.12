@@ -6,10 +6,202 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_flap_command`, `begin_session`, `build_bmw_routine_0205_request`, `build_clear_dtc_request`, `build_dme_reset_request`, `build_dtc_read_request`, `build_exhaust_flap_cycle_request`, `build_exhaust_flap_reset_request`, `build_hsfz`, `build_ista_memory_read_request`, `build_live_exhaust_flap_request`, `classify_n20_reference`, `clear_flap_command_sender`, `clear_validated_vehicle_identity`, `complete`, `configured_flap_control`, `configured_live_sensor_ids`, `confirmed_f82_s55_profile`, `data_identifier_definition`, `data_identifier`, `debug_transport`, `decode_bmw_routine_0205`, `decode_dme_factory_identity_bundle`, `decode_dme_flash_counter`, `decode_dme_supplier_identity_bundle`, `decode_f101_last_flash_date`, `decode_mhd_hwel_from_f101`, `decode_s55_dme_diagnostic_session`, `decode_s55_dme_identity_bundle`, `decode_s55_ecu_manufacturing_date`, `decode_unsigned`, `diagnostic_code`, `diagnostic_service`, `discover_vehicle`, `discover_zgw_udp`, `drain_hsfz`, `dtc_status`, `ecu_display_name`, `ecu_factory_identity`, `ecu_fingerprint`, `ecu_identity`, `ecu_last_flash_date`, `ecu_supplier_identity`, `enter_extended_session_with_timeout`, `enter_extended_session`, `flap_request_for_mode`, `forget_vehicle_host`, `format_bmw_software_identifier`, `fresh_diagnostic_stream`, `hex_payload`, `identify_engine`, `is_application_response`, `is_engine_probe_reply`, `is_expected_response`, `is_f30_n20_328i_vin`, `is_private_ipv4`, `is_terminal_transport_error`, `is_transient_network_configuration_error`, `label`, `last_vehicle_host`, `local_interface_summary`, `log_ignored_live_response`, `match_live_poll_response`, `merge_bmw_routine_0205_values`, `monitoring_enabled`, `parse_clear_dtc_response`, `parse_dme_reset_acknowledgement`, `parse_dtc_response_for_ecu`, `parse_dtc_response`, `parse_exhaust_flap_io_response`, `parse_ista_memory_read_response`, `parse_zgw_vin`, `parse`, `periodic_flap_request`, `poll_connection`, `probe_enet`, `query_dtc_for_ecu_with_retry`, `query_dtc_for_ecu`, `raw_transport_log`, `read_ascii_data_identifier`, `read_bm3_memory_block`, `read_bmw_routine_0205_identifier`, `read_bmw_routine_0205`, `read_data_identifier`, `read_dme_flash_counter`, `read_factory_identity`, `read_legacy_optional_fingerprint`, `read_manual_uds_response`, `read_matching_uds_response`, `read_n20_reference_memory`, `read_optional_identifier_hex`, `read_optional_identifier`, `read_s55_dme_diagnostic_session`, `read_s55_ecu_manufacturing_date`, `read_supplier_identity`, `read_vehicle_dme_voltage`, `recovery_attempt_limit`, `refresh_vehicle_host_after_route_loss`, `remember_vehicle_host`, `request_sid`, `response_request_service`, `run_demo_session`, `run_vehicle_session`, `selected_sensors`, `send_uds`, `sensor_with_transport`, `sensor`, `sensor`, `session_slot`, `stable_dme_identity`, `start_poll`, `status`, `transport_diagnostic`, `transport_identifier`, `validate_bm3_read_vehicle`, `validate_flap_control_vehicle`, `validate_matching_reset_vin`, `validate_selected_reset_vin`, `validate_service_vehicle`, `validate_vehicle_identity`, `vehicle_voltage`, `vin`, `wait_for_broadcast_clear_dtc_responses`
+// These functions are ignored because they are not marked as `pub`: `apply_flap_command`, `begin_session`, `build_bmw_routine_0205_request`, `build_clear_dtc_request`, `build_dme_reset_request`, `build_dtc_read_request`, `build_exhaust_flap_cycle_request`, `build_exhaust_flap_reset_request`, `build_hsfz`, `build_ista_memory_read_request`, `build_live_exhaust_flap_request`, `classify_n20_reference`, `clear_flap_command_sender`, `clear_validated_vehicle_identity`, `complete`, `configured_flap_control`, `configured_live_sensor_ids`, `confirmed_f82_s55_profile`, `data_identifier_definition`, `data_identifier`, `debug_transport`, `decode_bmw_routine_0205`, `decode_dme_factory_identity_bundle`, `decode_dme_flash_counter`, `decode_dme_supplier_identity_bundle`, `decode_f101_last_flash_date`, `decode_mhd_hwel_from_f101`, `decode_s55_dme_diagnostic_session`, `decode_s55_dme_identity_bundle`, `decode_s55_ecu_manufacturing_date`, `decode_unsigned`, `diagnostic_code`, `diagnostic_service`, `discover_vehicle`, `discover_zgw_udp`, `discovery_interface_subnet`, `discovery_subnets`, `drain_hsfz`, `dtc_status`, `ecu_display_name`, `ecu_factory_identity`, `ecu_fingerprint`, `ecu_identity`, `ecu_last_flash_date`, `ecu_supplier_identity`, `enter_extended_session_with_timeout`, `enter_extended_session`, `flap_request_for_mode`, `forget_vehicle_host`, `format_bmw_software_identifier`, `fresh_diagnostic_stream`, `hex_payload`, `identify_engine`, `is_application_response`, `is_engine_probe_reply`, `is_expected_response`, `is_f30_n20_328i_vin`, `is_private_ipv4`, `is_terminal_transport_error`, `is_transient_network_configuration_error`, `label`, `last_vehicle_host`, `local_interface_summary`, `log_ignored_live_response`, `match_live_poll_response`, `merge_bmw_routine_0205_values`, `monitoring_enabled`, `operation_error`, `parse_clear_dtc_response`, `parse_dme_reset_acknowledgement`, `parse_dtc_response_for_ecu`, `parse_dtc_response`, `parse_exhaust_flap_io_response`, `parse_ista_memory_read_response`, `parse_zgw_vin`, `parse`, `periodic_flap_request`, `poll_connection`, `probe_enet`, `query_dtc_for_ecu_with_retry`, `query_dtc_for_ecu`, `raw_transport_log`, `read_ascii_data_identifier`, `read_bm3_memory_block`, `read_bmw_routine_0205_identifier`, `read_bmw_routine_0205`, `read_data_identifier`, `read_dme_flash_counter`, `read_factory_identity`, `read_legacy_optional_fingerprint`, `read_manual_uds_response`, `read_matching_uds_response`, `read_n20_reference_memory`, `read_optional_identifier_hex`, `read_optional_identifier`, `read_s55_dme_diagnostic_session`, `read_s55_ecu_manufacturing_date`, `read_supplier_identity`, `read_vehicle_dme_voltage`, `recovery_attempt_limit`, `refresh_vehicle_host_after_route_loss`, `remember_vehicle_host`, `request_sid`, `response_request_service`, `run_demo_session`, `run_vehicle_session`, `selected_sensors`, `send_packet`, `send_uds`, `sensor_with_transport`, `sensor`, `sensor`, `session_slot`, `stable_dme_identity`, `start_poll`, `status`, `transport_diagnostic`, `transport_identifier`, `validate_bm3_read_vehicle`, `validate_flap_control_vehicle`, `validate_matching_reset_vin`, `validate_n20_coding_read_request`, `validate_selected_reset_vin`, `validate_service_vehicle`, `validate_vehicle_identity`, `vehicle_voltage`, `vin`, `wait_for_broadcast_clear_dtc_responses`, `windows_link_local_subnets`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DownloadHsfzTransport`, `FlapCommand`, `HsfzFrame`, `LivePollResponse`, `LivePollStage`, `PendingFlapReply`, `PendingLivePoll`, `PendingTransportRequest`, `TransportDiagnosticsConfig`, `TransportDiagnosticsLevel`, `TransportRequestContext`, `ValidatedVehicleIdentity`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `partial_cmp`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `partial_cmp`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`, `default`, `default`, `receive`, `send`
+
+/// Offline startup interlock. Repeated calls recheck the same application
+/// storage; they cannot override or acknowledge uncertain operation evidence.
+Future<String> initializeVehicleSafety({required String rootDirectory}) =>
+    RustLib.instance.api.crateApiVehicleInitializeVehicleSafety(
+      rootDirectory: rootDirectory,
+    );
+
+/// Import historical agent workflow flags only; never grants programming access.
+Future<String> importN20AgentState({
+  required String expectedVin,
+  required String sourcePath,
+  required bool confirmed,
+}) => RustLib.instance.api.crateApiVehicleImportN20AgentState(
+  expectedVin: expectedVin,
+  sourcePath: sourcePath,
+  confirmed: confirmed,
+);
+
+/// Offline BIN records; no vehicle connection and no compatibility approval.
+Future<String> inspectN20BinMetadata({
+  required String binPath,
+  required String binSha256,
+}) => RustLib.instance.api.crateApiVehicleInspectN20BinMetadata(
+  binPath: binPath,
+  binSha256: binSha256,
+);
+
+/// DME Preparation 2 on one owned socket; cannot erase or transfer a BIN.
+Stream<N20OperationEvent> runOwnedDmePreparation({
+  required String expectedVin,
+  required String expectedBootloader,
+  required List<Uint8List> requests,
+  required List<int> securityPrefix,
+  required List<Uint8List> postKeyRequests,
+  required String outputDirectory,
+  required bool confirmed,
+}) => RustLib.instance.api.crateApiVehicleRunOwnedDmePreparation(
+  expectedVin: expectedVin,
+  expectedBootloader: expectedBootloader,
+  requests: requests,
+  securityPrefix: securityPrefix,
+  postKeyRequests: postKeyRequests,
+  outputDirectory: outputDirectory,
+  confirmed: confirmed,
+);
+
+Stream<N20OperationEvent> prepareN20FlashOperation({
+  required String expectedVin,
+  required String expectedSoftware,
+  required String binPath,
+  required String binSha256,
+  required String outputDirectory,
+  bool? binStock,
+}) => RustLib.instance.api.crateApiVehiclePrepareN20FlashOperation(
+  expectedVin: expectedVin,
+  expectedSoftware: expectedSoftware,
+  binPath: binPath,
+  binSha256: binSha256,
+  outputDirectory: outputDirectory,
+  binStock: binStock,
+);
+
+Stream<N20OperationEvent> prepareN20FullFlashOperation({
+  required String expectedVin,
+  required String expectedSoftware,
+  required String binPath,
+  required String binSha256,
+  required String outputDirectory,
+  bool? binStock,
+}) => RustLib.instance.api.crateApiVehiclePrepareN20FullFlashOperation(
+  expectedVin: expectedVin,
+  expectedSoftware: expectedSoftware,
+  binPath: binPath,
+  binSha256: binSha256,
+  outputDirectory: outputDirectory,
+  binStock: binStock,
+);
+
+Stream<N20OperationEvent> startN20FullFlashOperation({
+  required String expectedVin,
+  required String expectedSoftware,
+  required String binPath,
+  required String binSha256,
+  required String outputDirectory,
+  required bool confirmed,
+  bool? binStock,
+}) => RustLib.instance.api.crateApiVehicleStartN20FullFlashOperation(
+  expectedVin: expectedVin,
+  expectedSoftware: expectedSoftware,
+  binPath: binPath,
+  binSha256: binSha256,
+  outputDirectory: outputDirectory,
+  confirmed: confirmed,
+  binStock: binStock,
+);
+
+Future<void> provideN20OperationKey({
+  required String requestId,
+  required List<int> key,
+}) => RustLib.instance.api.crateApiVehicleProvideN20OperationKey(
+  requestId: requestId,
+  key: key,
+);
+
+Future<void> rejectN20OperationKey({
+  required String requestId,
+  required String reason,
+}) => RustLib.instance.api.crateApiVehicleRejectN20OperationKey(
+  requestId: requestId,
+  reason: reason,
+);
+
+Stream<N20OperationEvent> startN20FlashOperation({
+  required String expectedVin,
+  required String expectedSoftware,
+  required String binPath,
+  required String binSha256,
+  required String outputDirectory,
+  required bool confirmed,
+  bool? binStock,
+}) => RustLib.instance.api.crateApiVehicleStartN20FlashOperation(
+  expectedVin: expectedVin,
+  expectedSoftware: expectedSoftware,
+  binPath: binPath,
+  binSha256: binSha256,
+  outputDirectory: outputDirectory,
+  confirmed: confirmed,
+  binStock: binStock,
+);
+
+/// Local evidence inspection; does not connect to a DME or resume programming.
+Future<String> listN20SavedOperations({
+  required String rootDirectory,
+  required String expectedVin,
+}) => RustLib.instance.api.crateApiVehicleListN20SavedOperations(
+  rootDirectory: rootDirectory,
+  expectedVin: expectedVin,
+);
+
+Stream<N20OperationEvent> queryN20ProgrammingPreconditions({
+  required String expectedVin,
+  required String expectedSoftware,
+  required String outputDirectory,
+  required bool confirmed,
+}) => RustLib.instance.api.crateApiVehicleQueryN20ProgrammingPreconditions(
+  expectedVin: expectedVin,
+  expectedSoftware: expectedSoftware,
+  outputDirectory: outputDirectory,
+  confirmed: confirmed,
+);
+
+Stream<N20OperationEvent> prepareN20RecoveryOperation({
+  required String expectedVin,
+  required String binSha256,
+  required String planPath,
+  required String outputDirectory,
+}) => RustLib.instance.api.crateApiVehiclePrepareN20RecoveryOperation(
+  expectedVin: expectedVin,
+  binSha256: binSha256,
+  planPath: planPath,
+  outputDirectory: outputDirectory,
+);
+
+Stream<N20OperationEvent> startN20RecoveryOperation({
+  required String expectedVin,
+  required String binSha256,
+  required String planPath,
+  required String outputDirectory,
+  required bool confirmed,
+}) => RustLib.instance.api.crateApiVehicleStartN20RecoveryOperation(
+  expectedVin: expectedVin,
+  binSha256: binSha256,
+  planPath: planPath,
+  outputDirectory: outputDirectory,
+  confirmed: confirmed,
+);
+
+/// Local review only: does not contact a DME or authorize recovery writes.
+Future<String> prepareN20RecoveryPlan({
+  required String expectedVin,
+  required String binPath,
+  required String binSha256,
+  required String originalOperationDirectory,
+  required String outputDirectory,
+}) => RustLib.instance.api.crateApiVehiclePrepareN20RecoveryPlan(
+  expectedVin: expectedVin,
+  binPath: binPath,
+  binSha256: binSha256,
+  originalOperationDirectory: originalOperationDirectory,
+  outputDirectory: outputDirectory,
+);
 
 /// Configure Rust transport capture for the next vehicle session. The app calls
 /// this once before opening a session, so a level change never alters a capture
@@ -69,6 +261,22 @@ Future<Uint8List> readDmeMemory({
   address: address,
   length: length,
   expectedVin: expectedVin,
+);
+
+/// Read-only live preparation for the documented N20 bench DME. No session
+/// changes, security access, erase, coding writes or downloads are issued.
+Future<String> readN20FlashCodingBackup({
+  required String expectedVin,
+  required String expectedSoftware,
+  required String binPath,
+  required String binSha256,
+  required String outputDirectory,
+}) => RustLib.instance.api.crateApiVehicleReadN20FlashCodingBackup(
+  expectedVin: expectedVin,
+  expectedSoftware: expectedSoftware,
+  binPath: binPath,
+  binSha256: binSha256,
+  outputDirectory: outputDirectory,
 );
 
 /// Send one physical UDS request. The caller supplies UDS bytes only; ENET
@@ -679,6 +887,49 @@ class IstaDmeReadProfile {
           length == other.length &&
           chunkSize == other.chunkSize &&
           responseSid == other.responseSid;
+}
+
+class N20OperationEvent {
+  final String kind;
+  final String message;
+  final String requestId;
+  final String bootloader;
+  final Uint8List seed;
+  final int completedStages;
+  final String evidencePath;
+
+  const N20OperationEvent({
+    required this.kind,
+    required this.message,
+    required this.requestId,
+    required this.bootloader,
+    required this.seed,
+    required this.completedStages,
+    required this.evidencePath,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      message.hashCode ^
+      requestId.hashCode ^
+      bootloader.hashCode ^
+      seed.hashCode ^
+      completedStages.hashCode ^
+      evidencePath.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is N20OperationEvent &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          message == other.message &&
+          requestId == other.requestId &&
+          bootloader == other.bootloader &&
+          seed == other.seed &&
+          completedStages == other.completedStages &&
+          evidencePath == other.evidencePath;
 }
 
 /// Comparison with the N20 bench state for which MHD reported no unlock needed.

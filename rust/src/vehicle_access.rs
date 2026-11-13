@@ -13,6 +13,7 @@ struct State {
 struct Inner {
     state: Mutex<State>,
     released: Condvar,
+    system_wide: bool,
 }
 
 #[derive(Clone, Default)]
@@ -21,6 +22,7 @@ pub(crate) struct VehicleAccess(Arc<Inner>);
 pub(crate) struct Lease {
     access: VehicleAccess,
     programming: bool,
+    _process_lock: Option<crate::vehicle_process_lock::ProcessLock>,
 }
 
 impl VehicleAccess {
@@ -36,10 +38,15 @@ impl VehicleAccess {
         if state.diagnostic {
             return Err("Vehicle access is busy; stop the live session or wait for the current diagnostic operation".into());
         }
+        let process_lock = self.acquire_process_lock()?;
+        if self.0.system_wide && !cfg!(test) {
+            crate::vehicle_startup_safety::require_clear()?;
+        }
         state.diagnostic = true;
         Ok(Lease {
             access: self.clone(),
             programming: false,
+            _process_lock: process_lock,
         })
     }
 
@@ -87,16 +94,45 @@ impl VehicleAccess {
         if state.programming || state.diagnostic {
             return Err("Vehicle access is busy; wait for existing operations to finish".into());
         }
+        let process_lock = self.acquire_process_lock()?;
+        if self.0.system_wide && !cfg!(test) {
+            crate::vehicle_startup_safety::require_clear()?;
+        }
         state.programming = true;
         Ok(Lease {
             access: self.clone(),
             programming: true,
+            _process_lock: process_lock,
         })
+    }
+
+    fn acquire_process_lock(
+        &self,
+    ) -> Result<Option<crate::vehicle_process_lock::ProcessLock>, String> {
+        if !self.0.system_wide {
+            return Ok(None);
+        }
+        crate::vehicle_process_lock::ProcessLock::acquire(
+            &crate::vehicle_process_lock::shared_path()?,
+        )
+        .map(Some)
+    }
+}
+
+impl Lease {
+    pub(crate) fn require_programming(&self) -> Result<(), String> {
+        if self.programming {
+            Ok(())
+        } else {
+            Err("Exclusive programming ownership is required".into())
+        }
     }
 }
 
 impl Drop for Lease {
     fn drop(&mut self) {
+        // Release the OS handle before waking local waiters.
+        self._process_lock.take();
         if let Ok(mut state) = self.access.0.state.lock() {
             if self.programming {
                 state.programming = false;
@@ -110,7 +146,12 @@ impl Drop for Lease {
 
 pub(crate) fn vehicle_access() -> &'static VehicleAccess {
     static ACCESS: OnceLock<VehicleAccess> = OnceLock::new();
-    ACCESS.get_or_init(VehicleAccess::default)
+    ACCESS.get_or_init(|| {
+        VehicleAccess(Arc::new(Inner {
+            system_wide: true,
+            ..Default::default()
+        }))
+    })
 }
 
 #[cfg(test)]

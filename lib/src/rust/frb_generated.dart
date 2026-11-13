@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/vehicle.dart';
+import 'api/vehicle/n20_owned_transport.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -66,7 +67,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1239770903;
+  int get rustContentHash => -1367907961;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -132,9 +133,74 @@ abstract class RustLibApi extends BaseApi {
     required String mode,
   });
 
+  Future<String> crateApiVehicleImportN20AgentState({
+    required String expectedVin,
+    required String sourcePath,
+    required bool confirmed,
+  });
+
   Future<void> crateApiVehicleInitApp();
 
+  Future<String> crateApiVehicleInitializeVehicleSafety({
+    required String rootDirectory,
+  });
+
+  Future<String> crateApiVehicleInspectN20BinMetadata({
+    required String binPath,
+    required String binSha256,
+  });
+
   IstaDmeReadProfile crateApiVehicleIstaS55ReadProfile();
+
+  Future<String> crateApiVehicleListN20SavedOperations({
+    required String rootDirectory,
+    required String expectedVin,
+  });
+
+  Stream<N20OperationEvent> crateApiVehiclePrepareN20FlashOperation({
+    required String expectedVin,
+    required String expectedSoftware,
+    required String binPath,
+    required String binSha256,
+    required String outputDirectory,
+    bool? binStock,
+  });
+
+  Stream<N20OperationEvent> crateApiVehiclePrepareN20FullFlashOperation({
+    required String expectedVin,
+    required String expectedSoftware,
+    required String binPath,
+    required String binSha256,
+    required String outputDirectory,
+    bool? binStock,
+  });
+
+  Stream<N20OperationEvent> crateApiVehiclePrepareN20RecoveryOperation({
+    required String expectedVin,
+    required String binSha256,
+    required String planPath,
+    required String outputDirectory,
+  });
+
+  Future<String> crateApiVehiclePrepareN20RecoveryPlan({
+    required String expectedVin,
+    required String binPath,
+    required String binSha256,
+    required String originalOperationDirectory,
+    required String outputDirectory,
+  });
+
+  Future<void> crateApiVehicleProvideN20OperationKey({
+    required String requestId,
+    required List<int> key,
+  });
+
+  Stream<N20OperationEvent> crateApiVehicleQueryN20ProgrammingPreconditions({
+    required String expectedVin,
+    required String expectedSoftware,
+    required String outputDirectory,
+    required bool confirmed,
+  });
 
   Future<Uint8List> crateApiVehicleReadBm3S55Calibration();
 
@@ -146,7 +212,30 @@ abstract class RustLibApi extends BaseApi {
 
   Future<Uint8List> crateApiVehicleReadIstaS55Calibration();
 
+  Future<String> crateApiVehicleReadN20FlashCodingBackup({
+    required String expectedVin,
+    required String expectedSoftware,
+    required String binPath,
+    required String binSha256,
+    required String outputDirectory,
+  });
+
+  Future<void> crateApiVehicleRejectN20OperationKey({
+    required String requestId,
+    required String reason,
+  });
+
   Future<void> crateApiVehicleResetEngineDme({required String expectedVin});
+
+  Stream<N20OperationEvent> crateApiVehicleRunOwnedDmePreparation({
+    required String expectedVin,
+    required String expectedBootloader,
+    required List<Uint8List> requests,
+    required List<int> securityPrefix,
+    required List<Uint8List> postKeyRequests,
+    required String outputDirectory,
+    required bool confirmed,
+  });
 
   Future<List<DiagnosticTroubleCode>> crateApiVehicleScanEngineDiagnostics();
 
@@ -163,6 +252,34 @@ abstract class RustLibApi extends BaseApi {
   Stream<VehicleEvent> crateApiVehicleStartDemoSession();
 
   void crateApiVehicleStartMonitoring();
+
+  Stream<N20OperationEvent> crateApiVehicleStartN20FlashOperation({
+    required String expectedVin,
+    required String expectedSoftware,
+    required String binPath,
+    required String binSha256,
+    required String outputDirectory,
+    required bool confirmed,
+    bool? binStock,
+  });
+
+  Stream<N20OperationEvent> crateApiVehicleStartN20FullFlashOperation({
+    required String expectedVin,
+    required String expectedSoftware,
+    required String binPath,
+    required String binSha256,
+    required String outputDirectory,
+    required bool confirmed,
+    bool? binStock,
+  });
+
+  Stream<N20OperationEvent> crateApiVehicleStartN20RecoveryOperation({
+    required String expectedVin,
+    required String binSha256,
+    required String planPath,
+    required String outputDirectory,
+    required bool confirmed,
+  });
 
   Stream<VehicleEvent> crateApiVehicleStartVehicleSession({
     required String host,
@@ -195,7 +312,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 1,
+            funcId: 2,
             port: port_,
           );
         },
@@ -222,7 +339,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -247,7 +364,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -278,7 +395,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 5,
             port: port_,
           );
         },
@@ -308,7 +425,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -337,7 +454,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(level, serializer);
           sse_encode_String(sessionId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -362,7 +479,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_vehicle_profile,
@@ -390,7 +507,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(rawData, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_ecu_identification,
@@ -418,7 +535,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(bytes, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_decoded_hsfz_frame,
@@ -444,7 +561,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -470,7 +587,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_diagnostic_service_definition,
@@ -495,7 +612,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_dtc_response_definition,
@@ -520,7 +637,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_dtc_status_definition,
@@ -545,7 +662,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_sensor_definition,
@@ -567,7 +684,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_diagnostic_trouble_code,
@@ -592,7 +709,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_box_autoadd_ecu_fingerprint(fingerprint, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_dme_capability_preflight,
@@ -620,7 +737,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 18,
             port: port_,
           );
         },
@@ -647,7 +764,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_ecu_fingerprint,
@@ -672,7 +789,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -706,7 +823,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 21,
             port: port_,
           );
         },
@@ -729,6 +846,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiVehicleImportN20AgentState({
+    required String expectedVin,
+    required String sourcePath,
+    required bool confirmed,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(expectedVin, serializer);
+          sse_encode_String(sourcePath, serializer);
+          sse_encode_bool(confirmed, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 22,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVehicleImportN20AgentStateConstMeta,
+        argValues: [expectedVin, sourcePath, confirmed],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVehicleImportN20AgentStateConstMeta =>
+      const TaskConstMeta(
+        debugName: "import_n20_agent_state",
+        argNames: ["expectedVin", "sourcePath", "confirmed"],
+      );
+
+  @override
   Future<void> crateApiVehicleInitApp() {
     return handler.executeNormal(
       NormalTask(
@@ -737,7 +891,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 23,
             port: port_,
           );
         },
@@ -756,12 +910,80 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
+  Future<String> crateApiVehicleInitializeVehicleSafety({
+    required String rootDirectory,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(rootDirectory, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 24,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVehicleInitializeVehicleSafetyConstMeta,
+        argValues: [rootDirectory],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVehicleInitializeVehicleSafetyConstMeta =>
+      const TaskConstMeta(
+        debugName: "initialize_vehicle_safety",
+        argNames: ["rootDirectory"],
+      );
+
+  @override
+  Future<String> crateApiVehicleInspectN20BinMetadata({
+    required String binPath,
+    required String binSha256,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(binPath, serializer);
+          sse_encode_String(binSha256, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 25,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVehicleInspectN20BinMetadataConstMeta,
+        argValues: [binPath, binSha256],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVehicleInspectN20BinMetadataConstMeta =>
+      const TaskConstMeta(
+        debugName: "inspect_n20_bin_metadata",
+        argNames: ["binPath", "binSha256"],
+      );
+
+  @override
   IstaDmeReadProfile crateApiVehicleIstaS55ReadProfile() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_ista_dme_read_profile,
@@ -778,6 +1000,363 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "ista_s55_read_profile", argNames: []);
 
   @override
+  Future<String> crateApiVehicleListN20SavedOperations({
+    required String rootDirectory,
+    required String expectedVin,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(rootDirectory, serializer);
+          sse_encode_String(expectedVin, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVehicleListN20SavedOperationsConstMeta,
+        argValues: [rootDirectory, expectedVin],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVehicleListN20SavedOperationsConstMeta =>
+      const TaskConstMeta(
+        debugName: "list_n20_saved_operations",
+        argNames: ["rootDirectory", "expectedVin"],
+      );
+
+  @override
+  Stream<N20OperationEvent> crateApiVehiclePrepareN20FlashOperation({
+    required String expectedVin,
+    required String expectedSoftware,
+    required String binPath,
+    required String binSha256,
+    required String outputDirectory,
+    bool? binStock,
+  }) {
+    final sink = RustStreamSink<N20OperationEvent>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(expectedVin, serializer);
+            sse_encode_String(expectedSoftware, serializer);
+            sse_encode_String(binPath, serializer);
+            sse_encode_String(binSha256, serializer);
+            sse_encode_String(outputDirectory, serializer);
+            sse_encode_opt_box_autoadd_bool(binStock, serializer);
+            sse_encode_StreamSink_n_20_operation_event_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 28,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_String,
+          ),
+          constMeta: kCrateApiVehiclePrepareN20FlashOperationConstMeta,
+          argValues: [
+            expectedVin,
+            expectedSoftware,
+            binPath,
+            binSha256,
+            outputDirectory,
+            binStock,
+            sink,
+          ],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiVehiclePrepareN20FlashOperationConstMeta =>
+      const TaskConstMeta(
+        debugName: "prepare_n20_flash_operation",
+        argNames: [
+          "expectedVin",
+          "expectedSoftware",
+          "binPath",
+          "binSha256",
+          "outputDirectory",
+          "binStock",
+          "sink",
+        ],
+      );
+
+  @override
+  Stream<N20OperationEvent> crateApiVehiclePrepareN20FullFlashOperation({
+    required String expectedVin,
+    required String expectedSoftware,
+    required String binPath,
+    required String binSha256,
+    required String outputDirectory,
+    bool? binStock,
+  }) {
+    final sink = RustStreamSink<N20OperationEvent>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(expectedVin, serializer);
+            sse_encode_String(expectedSoftware, serializer);
+            sse_encode_String(binPath, serializer);
+            sse_encode_String(binSha256, serializer);
+            sse_encode_String(outputDirectory, serializer);
+            sse_encode_opt_box_autoadd_bool(binStock, serializer);
+            sse_encode_StreamSink_n_20_operation_event_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 29,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_String,
+          ),
+          constMeta: kCrateApiVehiclePrepareN20FullFlashOperationConstMeta,
+          argValues: [
+            expectedVin,
+            expectedSoftware,
+            binPath,
+            binSha256,
+            outputDirectory,
+            binStock,
+            sink,
+          ],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiVehiclePrepareN20FullFlashOperationConstMeta =>
+      const TaskConstMeta(
+        debugName: "prepare_n20_full_flash_operation",
+        argNames: [
+          "expectedVin",
+          "expectedSoftware",
+          "binPath",
+          "binSha256",
+          "outputDirectory",
+          "binStock",
+          "sink",
+        ],
+      );
+
+  @override
+  Stream<N20OperationEvent> crateApiVehiclePrepareN20RecoveryOperation({
+    required String expectedVin,
+    required String binSha256,
+    required String planPath,
+    required String outputDirectory,
+  }) {
+    final sink = RustStreamSink<N20OperationEvent>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(expectedVin, serializer);
+            sse_encode_String(binSha256, serializer);
+            sse_encode_String(planPath, serializer);
+            sse_encode_String(outputDirectory, serializer);
+            sse_encode_StreamSink_n_20_operation_event_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 30,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_String,
+          ),
+          constMeta: kCrateApiVehiclePrepareN20RecoveryOperationConstMeta,
+          argValues: [expectedVin, binSha256, planPath, outputDirectory, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiVehiclePrepareN20RecoveryOperationConstMeta =>
+      const TaskConstMeta(
+        debugName: "prepare_n20_recovery_operation",
+        argNames: [
+          "expectedVin",
+          "binSha256",
+          "planPath",
+          "outputDirectory",
+          "sink",
+        ],
+      );
+
+  @override
+  Future<String> crateApiVehiclePrepareN20RecoveryPlan({
+    required String expectedVin,
+    required String binPath,
+    required String binSha256,
+    required String originalOperationDirectory,
+    required String outputDirectory,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(expectedVin, serializer);
+          sse_encode_String(binPath, serializer);
+          sse_encode_String(binSha256, serializer);
+          sse_encode_String(originalOperationDirectory, serializer);
+          sse_encode_String(outputDirectory, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 31,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVehiclePrepareN20RecoveryPlanConstMeta,
+        argValues: [
+          expectedVin,
+          binPath,
+          binSha256,
+          originalOperationDirectory,
+          outputDirectory,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVehiclePrepareN20RecoveryPlanConstMeta =>
+      const TaskConstMeta(
+        debugName: "prepare_n20_recovery_plan",
+        argNames: [
+          "expectedVin",
+          "binPath",
+          "binSha256",
+          "originalOperationDirectory",
+          "outputDirectory",
+        ],
+      );
+
+  @override
+  Future<void> crateApiVehicleProvideN20OperationKey({
+    required String requestId,
+    required List<int> key,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(requestId, serializer);
+          sse_encode_list_prim_u_8_loose(key, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 32,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVehicleProvideN20OperationKeyConstMeta,
+        argValues: [requestId, key],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVehicleProvideN20OperationKeyConstMeta =>
+      const TaskConstMeta(
+        debugName: "provide_n20_operation_key",
+        argNames: ["requestId", "key"],
+      );
+
+  @override
+  Stream<N20OperationEvent> crateApiVehicleQueryN20ProgrammingPreconditions({
+    required String expectedVin,
+    required String expectedSoftware,
+    required String outputDirectory,
+    required bool confirmed,
+  }) {
+    final sink = RustStreamSink<N20OperationEvent>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(expectedVin, serializer);
+            sse_encode_String(expectedSoftware, serializer);
+            sse_encode_String(outputDirectory, serializer);
+            sse_encode_bool(confirmed, serializer);
+            sse_encode_StreamSink_n_20_operation_event_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 33,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_String,
+          ),
+          constMeta: kCrateApiVehicleQueryN20ProgrammingPreconditionsConstMeta,
+          argValues: [
+            expectedVin,
+            expectedSoftware,
+            outputDirectory,
+            confirmed,
+            sink,
+          ],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiVehicleQueryN20ProgrammingPreconditionsConstMeta =>
+      const TaskConstMeta(
+        debugName: "query_n20_programming_preconditions",
+        argNames: [
+          "expectedVin",
+          "expectedSoftware",
+          "outputDirectory",
+          "confirmed",
+          "sink",
+        ],
+      );
+
+  @override
   Future<Uint8List> crateApiVehicleReadBm3S55Calibration() {
     return handler.executeNormal(
       NormalTask(
@@ -786,7 +1365,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 34,
             port: port_,
           );
         },
@@ -820,7 +1399,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 35,
             port: port_,
           );
         },
@@ -850,7 +1429,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 36,
             port: port_,
           );
         },
@@ -869,6 +1448,94 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "read_ista_s55_calibration", argNames: []);
 
   @override
+  Future<String> crateApiVehicleReadN20FlashCodingBackup({
+    required String expectedVin,
+    required String expectedSoftware,
+    required String binPath,
+    required String binSha256,
+    required String outputDirectory,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(expectedVin, serializer);
+          sse_encode_String(expectedSoftware, serializer);
+          sse_encode_String(binPath, serializer);
+          sse_encode_String(binSha256, serializer);
+          sse_encode_String(outputDirectory, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 37,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVehicleReadN20FlashCodingBackupConstMeta,
+        argValues: [
+          expectedVin,
+          expectedSoftware,
+          binPath,
+          binSha256,
+          outputDirectory,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVehicleReadN20FlashCodingBackupConstMeta =>
+      const TaskConstMeta(
+        debugName: "read_n20_flash_coding_backup",
+        argNames: [
+          "expectedVin",
+          "expectedSoftware",
+          "binPath",
+          "binSha256",
+          "outputDirectory",
+        ],
+      );
+
+  @override
+  Future<void> crateApiVehicleRejectN20OperationKey({
+    required String requestId,
+    required String reason,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(requestId, serializer);
+          sse_encode_String(reason, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 38,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVehicleRejectN20OperationKeyConstMeta,
+        argValues: [requestId, reason],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVehicleRejectN20OperationKeyConstMeta =>
+      const TaskConstMeta(
+        debugName: "reject_n20_operation_key",
+        argNames: ["requestId", "reason"],
+      );
+
+  @override
   Future<void> crateApiVehicleResetEngineDme({required String expectedVin}) {
     return handler.executeNormal(
       NormalTask(
@@ -878,7 +1545,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 39,
             port: port_,
           );
         },
@@ -900,6 +1567,74 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Stream<N20OperationEvent> crateApiVehicleRunOwnedDmePreparation({
+    required String expectedVin,
+    required String expectedBootloader,
+    required List<Uint8List> requests,
+    required List<int> securityPrefix,
+    required List<Uint8List> postKeyRequests,
+    required String outputDirectory,
+    required bool confirmed,
+  }) {
+    final sink = RustStreamSink<N20OperationEvent>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(expectedVin, serializer);
+            sse_encode_String(expectedBootloader, serializer);
+            sse_encode_list_list_prim_u_8_strict(requests, serializer);
+            sse_encode_list_prim_u_8_loose(securityPrefix, serializer);
+            sse_encode_list_list_prim_u_8_strict(postKeyRequests, serializer);
+            sse_encode_String(outputDirectory, serializer);
+            sse_encode_bool(confirmed, serializer);
+            sse_encode_StreamSink_n_20_operation_event_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 40,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_String,
+          ),
+          constMeta: kCrateApiVehicleRunOwnedDmePreparationConstMeta,
+          argValues: [
+            expectedVin,
+            expectedBootloader,
+            requests,
+            securityPrefix,
+            postKeyRequests,
+            outputDirectory,
+            confirmed,
+            sink,
+          ],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiVehicleRunOwnedDmePreparationConstMeta =>
+      const TaskConstMeta(
+        debugName: "run_owned_dme_preparation",
+        argNames: [
+          "expectedVin",
+          "expectedBootloader",
+          "requests",
+          "securityPrefix",
+          "postKeyRequests",
+          "outputDirectory",
+          "confirmed",
+          "sink",
+        ],
+      );
+
+  @override
   Future<List<DiagnosticTroubleCode>> crateApiVehicleScanEngineDiagnostics() {
     return handler.executeNormal(
       NormalTask(
@@ -908,7 +1643,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 41,
             port: port_,
           );
         },
@@ -942,7 +1677,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 42,
             port: port_,
           );
         },
@@ -970,7 +1705,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_String(sensorIds, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -1001,7 +1736,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 30,
+              funcId: 44,
               port: port_,
             );
           },
@@ -1036,7 +1771,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 31,
+              funcId: 45,
               port: port_,
             );
           },
@@ -1062,7 +1797,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -1077,6 +1812,202 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiVehicleStartMonitoringConstMeta =>
       const TaskConstMeta(debugName: "start_monitoring", argNames: []);
+
+  @override
+  Stream<N20OperationEvent> crateApiVehicleStartN20FlashOperation({
+    required String expectedVin,
+    required String expectedSoftware,
+    required String binPath,
+    required String binSha256,
+    required String outputDirectory,
+    required bool confirmed,
+    bool? binStock,
+  }) {
+    final sink = RustStreamSink<N20OperationEvent>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(expectedVin, serializer);
+            sse_encode_String(expectedSoftware, serializer);
+            sse_encode_String(binPath, serializer);
+            sse_encode_String(binSha256, serializer);
+            sse_encode_String(outputDirectory, serializer);
+            sse_encode_bool(confirmed, serializer);
+            sse_encode_opt_box_autoadd_bool(binStock, serializer);
+            sse_encode_StreamSink_n_20_operation_event_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 47,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_String,
+          ),
+          constMeta: kCrateApiVehicleStartN20FlashOperationConstMeta,
+          argValues: [
+            expectedVin,
+            expectedSoftware,
+            binPath,
+            binSha256,
+            outputDirectory,
+            confirmed,
+            binStock,
+            sink,
+          ],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiVehicleStartN20FlashOperationConstMeta =>
+      const TaskConstMeta(
+        debugName: "start_n20_flash_operation",
+        argNames: [
+          "expectedVin",
+          "expectedSoftware",
+          "binPath",
+          "binSha256",
+          "outputDirectory",
+          "confirmed",
+          "binStock",
+          "sink",
+        ],
+      );
+
+  @override
+  Stream<N20OperationEvent> crateApiVehicleStartN20FullFlashOperation({
+    required String expectedVin,
+    required String expectedSoftware,
+    required String binPath,
+    required String binSha256,
+    required String outputDirectory,
+    required bool confirmed,
+    bool? binStock,
+  }) {
+    final sink = RustStreamSink<N20OperationEvent>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(expectedVin, serializer);
+            sse_encode_String(expectedSoftware, serializer);
+            sse_encode_String(binPath, serializer);
+            sse_encode_String(binSha256, serializer);
+            sse_encode_String(outputDirectory, serializer);
+            sse_encode_bool(confirmed, serializer);
+            sse_encode_opt_box_autoadd_bool(binStock, serializer);
+            sse_encode_StreamSink_n_20_operation_event_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 48,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_String,
+          ),
+          constMeta: kCrateApiVehicleStartN20FullFlashOperationConstMeta,
+          argValues: [
+            expectedVin,
+            expectedSoftware,
+            binPath,
+            binSha256,
+            outputDirectory,
+            confirmed,
+            binStock,
+            sink,
+          ],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiVehicleStartN20FullFlashOperationConstMeta =>
+      const TaskConstMeta(
+        debugName: "start_n20_full_flash_operation",
+        argNames: [
+          "expectedVin",
+          "expectedSoftware",
+          "binPath",
+          "binSha256",
+          "outputDirectory",
+          "confirmed",
+          "binStock",
+          "sink",
+        ],
+      );
+
+  @override
+  Stream<N20OperationEvent> crateApiVehicleStartN20RecoveryOperation({
+    required String expectedVin,
+    required String binSha256,
+    required String planPath,
+    required String outputDirectory,
+    required bool confirmed,
+  }) {
+    final sink = RustStreamSink<N20OperationEvent>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(expectedVin, serializer);
+            sse_encode_String(binSha256, serializer);
+            sse_encode_String(planPath, serializer);
+            sse_encode_String(outputDirectory, serializer);
+            sse_encode_bool(confirmed, serializer);
+            sse_encode_StreamSink_n_20_operation_event_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 49,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_String,
+          ),
+          constMeta: kCrateApiVehicleStartN20RecoveryOperationConstMeta,
+          argValues: [
+            expectedVin,
+            binSha256,
+            planPath,
+            outputDirectory,
+            confirmed,
+            sink,
+          ],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiVehicleStartN20RecoveryOperationConstMeta =>
+      const TaskConstMeta(
+        debugName: "start_n20_recovery_operation",
+        argNames: [
+          "expectedVin",
+          "binSha256",
+          "planPath",
+          "outputDirectory",
+          "confirmed",
+          "sink",
+        ],
+      );
 
   @override
   Stream<VehicleEvent> crateApiVehicleStartVehicleSession({
@@ -1095,7 +2026,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 33,
+              funcId: 50,
               port: port_,
             );
           },
@@ -1124,7 +2055,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -1146,7 +2077,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -1168,7 +2099,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 53)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -1194,7 +2125,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 54,
             port: port_,
           );
         },
@@ -1222,6 +2153,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RustStreamSink<N20OperationEvent>
+  dco_decode_StreamSink_n_20_operation_event_Sse(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
   RustStreamSink<VehicleEvent> dco_decode_StreamSink_vehicle_event_Sse(
     dynamic raw,
   ) {
@@ -1233,6 +2171,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as String;
+  }
+
+  @protected
+  WireJournal dco_decode_TraitDef_WireJournal(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
   }
 
   @protected
@@ -1254,6 +2198,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   bool dco_decode_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as bool;
+  }
+
+  @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
   }
@@ -1510,6 +2460,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<Uint8List> dco_decode_list_list_prim_u_8_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_list_prim_u_8_strict).toList();
+  }
+
+  @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as List<int>;
@@ -1534,6 +2490,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  N20OperationEvent dco_decode_n_20_operation_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return N20OperationEvent(
+      kind: dco_decode_String(arr[0]),
+      message: dco_decode_String(arr[1]),
+      requestId: dco_decode_String(arr[2]),
+      bootloader: dco_decode_String(arr[3]),
+      seed: dco_decode_list_prim_u_8_strict(arr[4]),
+      completedStages: dco_decode_u_32(arr[5]),
+      evidencePath: dco_decode_String(arr[6]),
+    );
+  }
+
+  @protected
   N20UnlockReferenceCheck dco_decode_n_20_unlock_reference_check(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1551,6 +2524,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_bool(raw);
   }
 
   @protected
@@ -1688,6 +2667,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RustStreamSink<N20OperationEvent>
+  sse_decode_StreamSink_n_20_operation_event_Sse(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
   RustStreamSink<VehicleEvent> sse_decode_StreamSink_vehicle_event_Sse(
     SseDeserializer deserializer,
   ) {
@@ -1729,6 +2715,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8() != 0;
+  }
+
+  @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_bool(deserializer));
   }
 
   @protected
@@ -2071,6 +3063,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<Uint8List> sse_decode_list_list_prim_u_8_strict(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <Uint8List>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_list_prim_u_8_strict(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -2113,6 +3119,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  N20OperationEvent sse_decode_n_20_operation_event(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_kind = sse_decode_String(deserializer);
+    var var_message = sse_decode_String(deserializer);
+    var var_requestId = sse_decode_String(deserializer);
+    var var_bootloader = sse_decode_String(deserializer);
+    var var_seed = sse_decode_list_prim_u_8_strict(deserializer);
+    var var_completedStages = sse_decode_u_32(deserializer);
+    var var_evidencePath = sse_decode_String(deserializer);
+    return N20OperationEvent(
+      kind: var_kind,
+      message: var_message,
+      requestId: var_requestId,
+      bootloader: var_bootloader,
+      seed: var_seed,
+      completedStages: var_completedStages,
+      evidencePath: var_evidencePath,
+    );
+  }
+
+  @protected
   N20UnlockReferenceCheck sse_decode_n_20_unlock_reference_check(
     SseDeserializer deserializer,
   ) {
@@ -2135,6 +3164,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_bool(deserializer));
     } else {
       return null;
     }
@@ -2339,6 +3379,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_StreamSink_n_20_operation_event_Sse(
+    RustStreamSink<N20OperationEvent> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_n_20_operation_event,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_StreamSink_vehicle_event_Sse(
     RustStreamSink<VehicleEvent> self,
     SseSerializer serializer,
@@ -2380,6 +3437,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self ? 1 : 0);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self, serializer);
   }
 
   @protected
@@ -2633,6 +3696,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_list_prim_u_8_strict(
+    List<Uint8List> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_list_prim_u_8_strict(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_prim_u_8_loose(
     List<int> self,
     SseSerializer serializer,
@@ -2679,6 +3754,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_n_20_operation_event(
+    N20OperationEvent self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.kind, serializer);
+    sse_encode_String(self.message, serializer);
+    sse_encode_String(self.requestId, serializer);
+    sse_encode_String(self.bootloader, serializer);
+    sse_encode_list_prim_u_8_strict(self.seed, serializer);
+    sse_encode_u_32(self.completedStages, serializer);
+    sse_encode_String(self.evidencePath, serializer);
+  }
+
+  @protected
   void sse_encode_n_20_unlock_reference_check(
     N20UnlockReferenceCheck self,
     SseSerializer serializer,
@@ -2697,6 +3787,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_String(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_bool(self, serializer);
     }
   }
 

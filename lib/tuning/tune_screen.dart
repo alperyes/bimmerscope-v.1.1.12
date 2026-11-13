@@ -1,31 +1,29 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:typed_data';
+import 'package:bmw_app/diagnostics/security_response_provider.dart';
+import 'package:bmw_app/diagnostics/dme_preparation_2_screen.dart';
 
 import 'package:bmw_app/design/app_palette.dart';
 import 'package:bmw_app/design/connection_status_chip.dart';
-import 'package:bmw_app/vehicle/vehicle_capabilities.dart';
 import 'package:bmw_app/vehicle/vehicle_identity.dart';
 import 'package:bmw_app/vehicle/dme_identifier_format.dart';
 import 'package:bmw_app/tuning/stock_file_store.dart';
 import 'package:bmw_app/tuning/read_dme2_screen.dart';
 import 'package:bmw_app/tuning/tune_product.dart';
-import 'package:bmw_app/tuning/tuner_package.dart';
-import 'package:bmw_app/logging/data_logger.dart';
-import 'package:bmw_app/tuning/tuner_request.dart';
 import 'package:bmw_app/tuning/tune_compatibility.dart';
 import 'package:bmw_app/tuning/calibration_artifact.dart';
-import 'package:bmw_app/tuning/write_preflight.dart';
+import 'package:bmw_app/tuning/file_dme_comparison.dart';
+import 'package:bmw_app/tuning/flash_map_workspace.dart';
 import 'package:bmw_app/vehicle/simulator_transport.dart';
 import 'package:bmw_app/src/rust/api/vehicle.dart' as rust_vehicle;
 import 'package:bmw_app/vehicle/garage_screen.dart';
 import 'package:bmw_app/vehicle/vehicle_garage.dart';
-import 'package:bmw_app/logging/log_quality.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:file_selector/file_selector.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:lottie/lottie.dart';
+import 'package:path_provider/path_provider.dart';
 
 class TuneScreen extends StatefulWidget {
   const TuneScreen({
@@ -142,161 +140,17 @@ class _TuneScreenState extends State<TuneScreen> {
   String? stockSource;
   bool readingEcu2 = false;
   final stockFileStore = StockFileStore();
-  final tunerPackageStore = TunerPackageStore();
-  final tunerRequestStore = TunerRequestStore();
-  final modificationsController = TextEditingController();
-  final fuelController = TextEditingController();
-  final hardwareController = TextEditingController();
-  final _tunerRequestPanelKey = GlobalKey();
-  final _tunerRequestExpansionController = ExpansibleController();
-  final ValueNotifier<int> _tunerRequestRevision = ValueNotifier(0);
-  Widget? _tunerRequestWorkspace;
-  bool _tunerRequestPageOpen = false;
-  Timer? _draftSaveTimer;
-  List<File> availableLogs = [];
-  final selectedLogs = <String>{};
-  List<TunerRequest> savedRequests = [];
   TuneProduct selectedProduct = s55RemapProducts.first;
-  File? originalMap;
-  File? comparisonMap;
-  Map<String, Map<String, dynamic>> mapMetadata = {};
 
   @override
   void initState() {
     super.initState();
-    modificationsController.addListener(_scheduleDraftSave);
-    fuelController.addListener(_scheduleDraftSave);
-    hardwareController.addListener(_scheduleDraftSave);
-    unawaited(_loadWorkspace());
-  }
-
-  Future<void> _loadWorkspace() async {
-    await loadBackup();
-    await loadLogs();
-    await loadRequests();
-    await loadDraft();
-  }
-
-  Future<void> loadRequests() async {
-    final requests = await tunerRequestStore.loadAll();
-    if (mounted) {
-      setState(
-        () =>
-            savedRequests = requests.where((r) => r.vin == widget.vin).toList(),
-      );
-    }
-  }
-
-  Future<void> loadDraft() async {
-    final requests = await tunerRequestStore.loadAll();
-    final draft = requests
-        .where(
-          (r) => r.vin == widget.vin && r.status == TunerRequestStatus.draft,
-        )
-        .firstOrNull;
-    if (!mounted || draft == null) return;
-    modificationsController.text = draft.modifications;
-    fuelController.text = draft.fuel;
-    hardwareController.text = draft.hardware;
-    selectedProduct = findTuneProduct(draft.productId) ?? selectedProduct;
-    final draftLogNames = draft.logFiles.toSet();
-    selectedLogs
-      ..clear()
-      ..addAll(
-        availableLogs
-            .where((log) => draftLogNames.contains(log.uri.pathSegments.last))
-            .map((log) => log.path),
-      );
-    setState(() {});
+    unawaited(loadBackup());
   }
 
   @override
   void dispose() {
-    _draftSaveTimer?.cancel();
-    modificationsController.removeListener(_scheduleDraftSave);
-    fuelController.removeListener(_scheduleDraftSave);
-    hardwareController.removeListener(_scheduleDraftSave);
-    unawaited(saveDraft());
-    modificationsController.dispose();
-    fuelController.dispose();
-    hardwareController.dispose();
-    _tunerRequestExpansionController.dispose();
-    _tunerRequestRevision.dispose();
     super.dispose();
-  }
-
-  @override
-  void setState(VoidCallback fn) {
-    super.setState(fn);
-    _tunerRequestRevision.value++;
-  }
-
-  void _scheduleDraftSave() {
-    _draftSaveTimer?.cancel();
-    _draftSaveTimer = Timer(const Duration(milliseconds: 700), () {
-      unawaited(_saveDraftSafely());
-    });
-  }
-
-  Future<void> _saveDraftSafely() async {
-    try {
-      await saveDraft();
-    } catch (_) {
-      // Draft persistence must never interrupt an edit if local storage is
-      // temporarily unavailable. The user can still prepare/share a package.
-    }
-  }
-
-  Future<void> saveDraft() async {
-    final identity = identifyVehicle(widget.vin);
-    if (identity == null) return;
-    final draftId =
-        'draft_${widget.vin.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_')}';
-    final existingDraft = (await tunerRequestStore.loadAll())
-        .where((request) => request.id == draftId)
-        .firstOrNull;
-    await tunerRequestStore.save(
-      TunerRequest(
-        id: draftId,
-        vin: widget.vin,
-        vehicleLabel: identity.displayLabel,
-        modifications: modificationsController.text.trim(),
-        fuel: fuelController.text.trim(),
-        hardware: hardwareController.text.trim(),
-        mileageKm: widget.mileageKm,
-        stockFileName: importedStockFile?.uri.pathSegments.last,
-        logFiles: selectedLogs
-            .map((path) => File(path).uri.pathSegments.last)
-            .toList(),
-        status: TunerRequestStatus.draft,
-        createdAt: existingDraft?.createdAt ?? DateTime.now(),
-        productId: selectedProduct.id,
-        productLabel: selectedProduct.displayName,
-      ),
-    );
-  }
-
-  Future<void> loadLogs() async {
-    final logs = await DataLogger.savedLogs();
-    final safeVin = widget.vin.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
-    final matchingLogs = <File>[];
-    for (final log in logs) {
-      final lines = await log
-          .openRead()
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .take(4)
-          .toList();
-      if (lines.any((line) => line.trim() == '# vehicle,$safeVin')) {
-        matchingLogs.add(log);
-      }
-    }
-    if (mounted) {
-      setState(() {
-        availableLogs = matchingLogs;
-        selectedLogs.addAll(matchingLogs.map((file) => file.path));
-      });
-    }
   }
 
   Future<void> loadBackup() async {
@@ -334,70 +188,6 @@ class _TuneScreenState extends State<TuneScreen> {
       stockInspection = inspection;
       stockSource = source;
     });
-  }
-
-  Future<void> showBackupHistory() async {
-    final backups = await stockFileStore.loadAll(widget.vin);
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-          children: [
-            Semantics(
-              header: true,
-              child: Text(
-                'Stock backup history',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (backups.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppPalette.surface(widget.isDark),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Semantics(
-                  container: true,
-                  label:
-                      'No stock backups saved for this vehicle. Read-only backup files will appear here after an ECU read.',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.inventory_2_outlined,
-                        color: AppPalette.secondary(widget.isDark),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text('No backups saved for this vehicle'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            for (final backup in backups)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.verified_user_outlined),
-                title: Text(backup.fileName),
-                subtitle: FutureBuilder<int>(
-                  future: backup.size,
-                  builder: (context, snapshot) => Text(
-                    snapshot.hasData
-                        ? _formatFileSize(snapshot.data!)
-                        : 'Checking file…',
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<({rust_vehicle.N20UnlockReferenceCheck? result, String? error})>
@@ -566,32 +356,6 @@ class _TuneScreenState extends State<TuneScreen> {
     );
   }
 
-  Future<void> importStockFile() async {
-    final file = await openFile(
-      acceptedTypeGroups: const [
-        XTypeGroup(
-          label: 'Calibration files',
-          extensions: ['bin', 'ori', 'hex', 'json'],
-        ),
-      ],
-    );
-    if (file == null || !mounted) return;
-    final inspection = await inspectCalibrationArtifact(File(file.path));
-    final backup = await stockFileStore.importFile(
-      sourcePath: file.path,
-      vin: widget.vin,
-      metadata: {
-        'source': 'imported_file',
-        'importedAt': DateTime.now().toUtc().toIso8601String(),
-        'workspaceVin': widget.vin,
-        'originalFileName': file.name,
-        'inspection': inspection.toJson(),
-        'readStatus': 'compatibility_unverified',
-      },
-    );
-    await setStockFile(backup.file);
-  }
-
   Future<void> readEcuCalibration2() async {
     if (readingEcu2 || !_dmeRead2Available) return;
     final isN20Reference = identifyVehicle(widget.vin)?.engine == 'N20';
@@ -708,456 +472,30 @@ class _TuneScreenState extends State<TuneScreen> {
     }
   }
 
-  Future<void> createTunerPackage() async {
-    try {
-      await _createTunerPackage();
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not prepare package: $error')),
-      );
-    }
-  }
-
-  Future<void> _createTunerPackage() async {
-    final identity = identifyVehicle(widget.vin);
-    final report = compatibilityReport;
-    if (identity == null || !report.readyForProfessionalReview) return;
-    final evidenceCapabilities = resolvedEcuProfile?.capabilities;
-    final logs = await DataLogger.savedLogs();
-    final selectedLogFiles = [
-      for (final log in logs)
-        if (selectedLogs.contains(log.path)) log,
-    ];
-    final logQuality = await Future.wait(
-      selectedLogFiles.map(
-        (log) => inspectLogQuality(
-          log,
-          vin: widget.vin.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_'),
-          profileId: identity.profile.id,
-        ),
-      ),
-    );
-    final file = await tunerPackageStore.create(
-      vin: widget.vin,
-      vehicleLabel: identity.displayLabel,
-      profileId: identity.profile.id,
-      productId: selectedProduct.id,
-      productLabel: selectedProduct.displayName,
-      capabilities: [
-        for (final capability in VehicleCapability.values)
-          if (evidenceCapabilities?.contains(capability) ??
-              identity.profile.supports(capability))
-            capability.name,
-      ],
-      stockFileName: importedStockFile?.uri.pathSegments.last,
-      stockFilePath: importedStockFile?.path,
-      logFiles: selectedLogFiles.map((log) => log.path).toList(),
-      modifications: modificationsController.text.trim(),
-      fuel: fuelController.text.trim(),
-      hardware: hardwareController.text.trim(),
-      mileageKm: widget.mileageKm,
-      compatibility: report.toJson(),
-      logQuality: logQuality.map((report) => report.toJson()).toList(),
-    );
-    final packageValidation = await tunerPackageStore.validate(file);
-    if (!packageValidation.valid) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Package could not be verified: ${packageValidation.errors.join(' ')}',
-            ),
-          ),
-        );
-      }
-      return;
-    }
-    final request = TunerRequest(
-      id: 'request_${DateTime.now().microsecondsSinceEpoch}',
-      vin: widget.vin,
-      vehicleLabel: identity.displayLabel,
-      modifications: modificationsController.text.trim(),
-      fuel: fuelController.text.trim(),
-      hardware: hardwareController.text.trim(),
-      mileageKm: widget.mileageKm,
-      stockFileName: importedStockFile?.uri.pathSegments.last,
-      logFiles: [
-        for (final log in logs)
-          if (selectedLogs.contains(log.path)) log.uri.pathSegments.last,
-      ],
-      status: TunerRequestStatus.readyToSend,
-      createdAt: DateTime.now(),
-      productId: selectedProduct.id,
-      productLabel: selectedProduct.displayName,
-      packageManifestPath: file.path,
-    );
-    if (!mounted) return;
-    var shareAsArchive = false;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Review tuner package'),
-        content: Text(
-          '${identity.displayLabel}\n'
-          'Product: ${selectedProduct.displayName}\n\n'
-          'Stock backup: ${request.stockFileName ?? 'Not attached'}\n'
-          'Logs: ${request.logFiles.length}\n'
-          'Fuel: ${request.fuel.isEmpty ? 'Not specified' : request.fuel}\n'
-          'Hardware: ${request.hardware.isEmpty ? 'Not specified' : request.hardware}\n'
-          'Mileage: ${request.mileageKm?.toStringAsFixed(0) ?? 'Not specified'} km\n'
-          'Context: ${request.hasCompleteTunerContext ? 'Complete' : 'Missing ${request.missingTunerContext.join(', ')}'}\n'
-          'Notes: ${request.modifications.isEmpty ? 'None added' : request.modifications}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Share package'),
-          ),
-          FilledButton(
-            onPressed: () {
-              shareAsArchive = true;
-              Navigator.pop(context, true);
-            },
-            child: const Text('Share ZIP'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    final archive = shareAsArchive
-        ? await tunerPackageStore.createArchive(file)
-        : null;
-    await tunerRequestStore.save(request);
-    await SharePlus.instance.share(
-      ShareParams(
-        files: [
-          if (archive != null) XFile(archive.path, mimeType: 'application/zip'),
-          if (archive == null) ...[
-            XFile(file.path),
-            ...tunerPackageStore.lastAttachments.map((f) => XFile(f.path)),
-          ],
-        ],
-        text: 'BimmerScope tuner package',
-      ),
-    );
-    await loadRequests();
-  }
-
-  Future<void> chooseMap({required bool original}) async {
-    final file = await openFile(
-      acceptedTypeGroups: const [
-        XTypeGroup(
-          label: 'Calibration files',
-          extensions: ['bin', 'ori', 'hex', 'json'],
-        ),
-      ],
-    );
-    if (file == null || !mounted) return;
-    final selected = File(file.path);
-    final inspection = await inspectCalibrationArtifact(selected);
-    final metadata = <String, dynamic>{
-      'hash': inspection.sha256,
-      'size': inspection.size,
-      'imported': DateTime.now(),
-      'inspection': inspection.toJson(),
-    };
-    if (!mounted) return;
-    setState(() {
-      if (original) {
-        originalMap = selected;
-        mapMetadata['original'] = metadata;
-      } else {
-        comparisonMap = selected;
-        mapMetadata['comparison'] = metadata;
-      }
-    });
-  }
-
-  Future<void> showRequestDetails(TunerRequest request) async {
-    final missingContext = request.missingTunerContext;
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              Semantics(
-                header: true,
-                child: Text(
-                  request.vehicleLabel,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              if (request.productLabel != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  request.productLabel!,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ],
-              const SizedBox(height: 4),
-              Text(request.vin, style: Theme.of(context).textTheme.bodySmall),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 9,
-                ),
-                decoration: BoxDecoration(
-                  color:
-                      (request.status == TunerRequestStatus.readyToSend
-                              ? AppPalette.green
-                              : AppPalette.blue)
-                          .withValues(alpha: .10),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      request.status == TunerRequestStatus.readyToSend
-                          ? Icons.check_circle_outline_rounded
-                          : Icons.flag_outlined,
-                      size: 18,
-                      color: request.status == TunerRequestStatus.readyToSend
-                          ? AppPalette.green
-                          : AppPalette.blue,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        requestStatusLabel(request.status),
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    Text(
-                      'Revision ${request.revision}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(
-                  request.hasCompleteTunerContext
-                      ? Icons.verified_outlined
-                      : Icons.info_outline,
-                  color: request.hasCompleteTunerContext
-                      ? AppPalette.green
-                      : AppPalette.orange,
-                ),
-                title: Semantics(
-                  header: true,
-                  child: const Text('Tuner context'),
-                ),
-                subtitle: Text(
-                  request.hasCompleteTunerContext
-                      ? 'Fuel, hardware, mileage, notes, and logs are included.'
-                      : 'Still useful to share, but add: ${missingContext.join(', ')}.',
-                ),
-              ),
-              ExpansionTile(
-                tilePadding: const EdgeInsets.symmetric(horizontal: 4),
-                childrenPadding: const EdgeInsets.only(bottom: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                collapsedShape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                leading: const Icon(Icons.history_rounded),
-                title: Semantics(
-                  header: true,
-                  child: const Text('Request timeline'),
-                ),
-                subtitle: Text('${request.timeline.length} recorded events'),
-                children: [
-                  for (final event in request.timeline.reversed)
-                    Semantics(
-                      container: true,
-                      label:
-                          '${event.action}, recorded ${event.recordedAt.toLocal()}${event.detail == null ? '' : '. ${event.detail}'}',
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(event.action),
-                        subtitle: Text(
-                          '${event.recordedAt.toLocal()}${event.detail == null ? '' : '\n${event.detail}'}',
-                        ),
-                        isThreeLine: event.detail != null,
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () {
-                  modificationsController.text = request.modifications;
-                  fuelController.text = request.fuel;
-                  hardwareController.text = request.hardware;
-                  selectedProduct =
-                      findTuneProduct(request.productId) ?? selectedProduct;
-                  selectedLogs
-                    ..clear()
-                    ..addAll(
-                      availableLogs
-                          .where(
-                            (log) => request.logFiles.contains(
-                              log.uri.pathSegments.last,
-                            ),
-                          )
-                          .map((log) => log.path),
-                    );
-                  Navigator.pop(context);
-                  setState(() {});
-                },
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Use these details'),
-              ),
-              if (request.status == TunerRequestStatus.readyToSend) ...[
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    await tunerRequestStore.save(request.markSent());
-                    if (!context.mounted) return;
-                    Navigator.pop(context);
-                    await loadRequests();
-                  },
-                  icon: const Icon(Icons.check_rounded),
-                  label: const Text('Mark as sent'),
-                ),
-              ],
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.local_gas_station_outlined),
-                title: const Text('Fuel'),
-                subtitle: Text(
-                  request.fuel.isEmpty ? 'Not specified' : request.fuel,
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.precision_manufacturing_outlined),
-                title: const Text('Hardware'),
-                subtitle: Text(
-                  request.hardware.isEmpty ? 'Not specified' : request.hardware,
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.speed_outlined),
-                title: const Text('Mileage'),
-                subtitle: Text(
-                  request.mileageKm == null
-                      ? 'Not specified'
-                      : '${request.mileageKm!.toStringAsFixed(0)} km',
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.build_outlined),
-                title: const Text('Modifications and notes'),
-                subtitle: Text(
-                  request.modifications.isEmpty
-                      ? 'No notes added'
-                      : request.modifications,
-                ),
-              ),
-              if (request.packageManifestPath != null)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.verified_outlined),
-                  title: const Text('Verified package manifest'),
-                  subtitle: Text(
-                    File(request.packageManifestPath!).uri.pathSegments.last,
-                  ),
-                ),
-              if (request.packageManifestPath != null)
-                OutlinedButton.icon(
-                  onPressed: () => shareSavedPackage(request),
-                  icon: const Icon(Icons.ios_share_outlined),
-                  label: const Text('Share saved package ZIP'),
-                ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.save_outlined),
-                title: const Text('Stock backup'),
-                subtitle: Text(
-                  request.stockFileName ?? 'No stock backup attached',
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.description_outlined),
-                title: const Text('Attached logs'),
-                subtitle: Text(
-                  request.logFiles.isEmpty
-                      ? 'No logs attached'
-                      : request.logFiles.join(', '),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> shareSavedPackage(TunerRequest request) async {
-    final path = request.packageManifestPath;
-    if (path == null) return;
-    try {
-      final archive = await tunerPackageStore.createArchive(File(path));
-      if (!mounted) return;
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(archive.path, mimeType: 'application/zip')],
-          text: 'BimmerScope tuner package · ${request.vehicleLabel}',
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not share saved package: $error')),
-      );
-    }
-  }
-
-  String requestStatusLabel(TunerRequestStatus status) => switch (status) {
-    TunerRequestStatus.draft => 'Draft',
-    TunerRequestStatus.readyToSend => 'Ready to send',
-    TunerRequestStatus.sent => 'Sent',
-  };
-
-  String _formatFileSize(int bytes) => bytes < 1024 * 1024
-      ? '${(bytes / 1024).toStringAsFixed(1)} KB'
-      : '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
-
   void _openFlashMap() => Navigator.of(context).push<void>(
     MaterialPageRoute<void>(
       builder: (_) => _TuneActionPage(
         isDark: widget.isDark,
         title: 'Flash a map',
         icon: Icons.map_outlined,
-        message: 'Map flashing is not available in this version.',
-        detail:
-            'BimmerScope does not write calibration data to the ECU. This page is informational; no map will be sent to the vehicle.',
-        products: s55Connected ? s55RemapProducts : null,
-        selectedProduct: selectedProduct,
-        identity: connectedIdentity,
-        onProductSelected: (product) {
-          setState(() => selectedProduct = product);
-          _scheduleDraftSave();
-        },
+        vin: widget.vin,
+        engine: identifyVehicle(widget.vin)?.engine,
+        identity: widget.engineEcuIdentity,
+        software: widget.engineEcuSoftware,
+        hardware: widget.engineEcuHardware,
+        bootloader: widget.engineEcuBootloader,
+        calibration: widget.engineEcuCalibration,
+        sessionId: widget.sessionId,
+        connectionLabel: widget.connectionLabel,
+        engineEcuDetected: widget.engineEcuDetected,
+        action: _TuneActionKind.installMap,
+        onBeforeRead: widget.onBeforeVehicleCheck,
+        onAfterRead: widget.onAfterVehicleCheck,
+        realVehicle:
+            !widget.demoMode &&
+            !widget.simulatorMode &&
+            widget.engineEcuDetected &&
+            widget.sessionId.isNotEmpty,
       ),
     ),
   );
@@ -1168,9 +506,24 @@ class _TuneScreenState extends State<TuneScreen> {
         isDark: widget.isDark,
         title: 'Flash back to stock',
         icon: Icons.settings_backup_restore_rounded,
-        message: 'Stock restoration is not available in this version.',
-        detail:
-            'A safe restore requires the verified original calibration for this exact ECU and a validated recovery procedure. BimmerScope does not write calibration data.',
+        vin: widget.vin,
+        engine: identifyVehicle(widget.vin)?.engine,
+        identity: widget.engineEcuIdentity,
+        software: widget.engineEcuSoftware,
+        hardware: widget.engineEcuHardware,
+        bootloader: widget.engineEcuBootloader,
+        calibration: widget.engineEcuCalibration,
+        sessionId: widget.sessionId,
+        connectionLabel: widget.connectionLabel,
+        engineEcuDetected: widget.engineEcuDetected,
+        action: _TuneActionKind.restoreStock,
+        onBeforeRead: widget.onBeforeVehicleCheck,
+        onAfterRead: widget.onAfterVehicleCheck,
+        realVehicle:
+            !widget.demoMode &&
+            !widget.simulatorMode &&
+            widget.engineEcuDetected &&
+            widget.sessionId.isNotEmpty,
       ),
     ),
   );
@@ -1200,25 +553,6 @@ class _TuneScreenState extends State<TuneScreen> {
       ),
     ),
   );
-
-  Future<void> _openTunerRequestPage() async {
-    if (_tunerRequestPageOpen) return;
-    _tunerRequestExpansionController.expand();
-    setState(() => _tunerRequestPageOpen = true);
-    try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => _TunerRequestPage(
-            isDark: widget.isDark,
-            revision: _tunerRequestRevision,
-            workspace: () => _tunerRequestWorkspace ?? const SizedBox.shrink(),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _tunerRequestPageOpen = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -1332,7 +666,7 @@ class _TuneScreenState extends State<TuneScreen> {
                 const SizedBox(height: 8),
                 _TuneActionMenu(
                   isDark: widget.isDark,
-                  enabled: _actionsAvailable,
+                  enabled: true,
                   items: [
                     _TuneActionItem(
                       key: const Key('tune-dme-identity-open'),
@@ -1351,551 +685,18 @@ class _TuneScreenState extends State<TuneScreen> {
                     _TuneActionItem(
                       key: const Key('tune-flash-map-open'),
                       title: 'Flash a map',
-                      subtitle: 'Map options and compatibility',
+                      subtitle: 'Review a calibration file and compatibility',
                       icon: Icons.map_outlined,
                       onTap: _openFlashMap,
                     ),
                     _TuneActionItem(
                       key: const Key('tune-flash-stock-open'),
                       title: 'Flash back to stock',
-                      subtitle: 'Stock restoration information',
+                      subtitle: 'Review saved stock artifact and eligibility',
                       icon: Icons.settings_backup_restore_rounded,
                       onTap: _openFlashBackToStock,
                     ),
-                    _TuneActionItem(
-                      key: const Key('tune-request-open'),
-                      title: 'Tuner Request',
-                      subtitle: 'Stock files, details, logs and history',
-                      icon: Icons.assignment_outlined,
-                      onTap: _openTunerRequestPage,
-                    ),
                   ],
-                ),
-                Builder(
-                  builder: (context) {
-                    final workspace = Container(
-                      key: _tunerRequestPanelKey,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(appCardRadius),
-                      ),
-                      child: ExpansionTile(
-                        controller: _tunerRequestExpansionController,
-                        tilePadding: const EdgeInsets.symmetric(horizontal: 14),
-                        childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        collapsedShape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        leading: const Icon(Icons.tune_rounded),
-                        title: Semantics(
-                          header: true,
-                          child: const Text('Request workspace'),
-                        ),
-                        subtitle: const Text(
-                          'Stock files, map review, details, and logs',
-                        ),
-                        children: [
-                          ExpansionTile(
-                            tilePadding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                            ),
-                            childrenPadding: const EdgeInsets.only(bottom: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            collapsedShape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            leading: const Icon(Icons.map_outlined),
-                            title: Semantics(
-                              header: true,
-                              child: const Text('Optional map review'),
-                            ),
-                            subtitle: const Text(
-                              'Browse, review, and prepare map files',
-                            ),
-                            children: [
-                              if (s55Connected)
-                                ListTile(
-                                  leading: const Icon(
-                                    Icons.storefront_outlined,
-                                  ),
-                                  title: Semantics(
-                                    header: true,
-                                    child: const Text('S55 remap products'),
-                                  ),
-                                  subtitle: const Text(
-                                    'Choose a Competition or CS product track',
-                                  ),
-                                  onTap: _openFlashMap,
-                                ),
-                              ListTile(
-                                leading: const Icon(Icons.tune_outlined),
-                                title: const Text('Review a map file'),
-                                subtitle: const Text(
-                                  'Compare a tuner-provided file safely',
-                                ),
-                                onTap: hasSupportedVehicleProfile
-                                    ? () => chooseMap(original: false)
-                                    : null,
-                              ),
-                              ListTile(
-                                leading: const Icon(Icons.save_outlined),
-                                title: const Text('Review stock backup'),
-                                subtitle: Text(
-                                  importedStockFile == null
-                                      ? 'Import a stock backup first'
-                                      : 'View the verified backup and its history',
-                                ),
-                                onTap: importedStockFile == null
-                                    ? importStockFile
-                                    : showBackupHistory,
-                              ),
-                              Semantics(
-                                enabled: false,
-                                label:
-                                    'Review backend options unavailable until vehicle-specific support is validated.',
-                                child: ListTile(
-                                  leading: const Icon(
-                                    Icons.info_outline_rounded,
-                                  ),
-                                  title: const Text('Review backend options'),
-                                  subtitle: const Text(
-                                    'Unavailable until vehicle-specific support is validated',
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Card(
-                            margin: EdgeInsets.zero,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Semantics(
-                                    header: true,
-                                    child: Text(
-                                      'Stock file & backups',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    importedStockFile == null
-                                        ? 'Import a known stock file to keep it with this Tune workspace.'
-                                        : 'Imported: ${importedStockFile!.uri.pathSegments.last}',
-                                  ),
-                                  if (importedStockFile != null &&
-                                      importedStockFileSize != null &&
-                                      importedStockFileHash != null) ...[
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      '${_formatFileSize(importedStockFileSize!)} · SHA-256 ${importedStockFileHash!.substring(0, 12)}…',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      stockSource == 'live_enet'
-                                          ? 'Source: ECU read · compatibility unverified'
-                                          : 'Source: imported file · compatibility unverified',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
-                                    ),
-                                    if (stockInspection?.filenameVin != null)
-                                      Text(
-                                        'Filename VIN: ${stockInspection!.filenameVin}${stockInspection!.filenameVin == widget.vin ? '' : ' · differs from active vehicle'}',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                    if (stockInspection?.filenameEcuId != null)
-                                      Text(
-                                        'Filename ECU ID: ${stockInspection!.filenameEcuId}',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                    if (stockInspection?.binaryMarker != null)
-                                      Text(
-                                        'BIN marker: ${stockInspection!.binaryMarker}',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                    SelectableText(
-                                      'SHA-256: $importedStockFileHash',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
-                                    ),
-                                  ],
-                                  const SizedBox(height: 12),
-                                  OutlinedButton.icon(
-                                    onPressed: importStockFile,
-                                    icon: const Icon(
-                                      Icons.upload_file_outlined,
-                                    ),
-                                    label: Text(
-                                      importedStockFile == null
-                                          ? 'Import stock file'
-                                          : 'Replace stock file',
-                                    ),
-                                  ),
-                                  if (widget.vin == 'WBA3A52010F360747') ...[
-                                    const SizedBox(height: 6),
-                                    const Text(
-                                      'Bench DME 00001C9F1D9601: file import is available. The supplied capture shows identity and short memory probes, but no complete BIN read sequence yet.',
-                                    ),
-                                  ],
-                                  if (importedStockFile != null) ...[
-                                    const SizedBox(height: 4),
-                                    TextButton.icon(
-                                      onPressed: showBackupHistory,
-                                      icon: const Icon(Icons.history_rounded),
-                                      label: const Text('View backup history'),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Card(
-                            margin: EdgeInsets.zero,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Semantics(
-                                    header: true,
-                                    child: Text(
-                                      'Read-only map comparison',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  const Text(
-                                    'Compare file metadata before sending anything to a tuner.',
-                                  ),
-                                  if (!hasSupportedVehicleProfile) ...[
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Identify a supported vehicle before comparing map files.',
-                                      style: TextStyle(
-                                        color: AppPalette.orange,
-                                      ),
-                                    ),
-                                  ] else if (!identityAvailable) ...[
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Offline review only. Connect to capture live ECU evidence before requesting a calibration read.',
-                                      style: TextStyle(
-                                        color: AppPalette.secondary(
-                                          widget.isDark,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 12),
-                                  _MapSlot(
-                                    label: 'Original / stock',
-                                    file: originalMap,
-                                    metadata: mapMetadata['original'],
-                                    onPressed: hasSupportedVehicleProfile
-                                        ? () => chooseMap(original: true)
-                                        : null,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  _MapSlot(
-                                    label: 'Comparison map',
-                                    file: comparisonMap,
-                                    metadata: mapMetadata['comparison'],
-                                    onPressed: hasSupportedVehicleProfile
-                                        ? () => chooseMap(original: false)
-                                        : null,
-                                  ),
-                                  if (originalMap != null &&
-                                      comparisonMap != null) ...[
-                                    const SizedBox(height: 12),
-                                    _ComparisonSummary(
-                                      original: mapMetadata['original']!,
-                                      comparison: mapMetadata['comparison']!,
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Card(
-                            margin: EdgeInsets.zero,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Semantics(
-                                    header: true,
-                                    child: Text(
-                                      'Tuner request details',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Saved automatically for this vehicle. Add the hardware, fuel, and map notes your tuner needs.',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  TextField(
-                                    controller: fuelController,
-                                    textCapitalization:
-                                        TextCapitalization.sentences,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Fuel',
-                                      hintText:
-                                          'Example: 98 RON / 93 AKI / E30',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  TextField(
-                                    controller: hardwareController,
-                                    textCapitalization:
-                                        TextCapitalization.sentences,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Hardware',
-                                      hintText:
-                                          'Example: stock turbos, intake, charge pipes',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  TextField(
-                                    controller: modificationsController,
-                                    maxLines: 3,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Modifications and notes',
-                                      hintText:
-                                          'Example: intake, charge pipes, fuel, requested map…',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          ...[
-                            const SizedBox(height: 16),
-                            Card(
-                              margin: EdgeInsets.zero,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 8,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        16,
-                                        8,
-                                        16,
-                                        4,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              'Logs to include',
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.titleMedium,
-                                            ),
-                                          ),
-                                          TextButton(
-                                            onPressed: () {
-                                              setState(() {
-                                                selectedLogs.addAll(
-                                                  availableLogs.map(
-                                                    (log) => log.path,
-                                                  ),
-                                                );
-                                              });
-                                              _scheduleDraftSave();
-                                            },
-                                            child: const Text('Select all'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () {
-                                              setState(selectedLogs.clear);
-                                              _scheduleDraftSave();
-                                            },
-                                            child: const Text('Clear'),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        16,
-                                        0,
-                                        16,
-                                        4,
-                                      ),
-                                      child: Text(
-                                        'Select saved logs to attach to the tuner package.',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                    ),
-                                    if (availableLogs.isEmpty)
-                                      Container(
-                                        margin: const EdgeInsets.fromLTRB(
-                                          16,
-                                          4,
-                                          16,
-                                          8,
-                                        ),
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: AppPalette.surface(
-                                            widget.isDark,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                        ),
-                                        child: Semantics(
-                                          container: true,
-                                          label:
-                                              'No saved logs yet. Record a live-data log first, then return here to attach it.',
-                                          child: Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Icon(
-                                                Icons.info_outline_rounded,
-                                                color: AppPalette.secondary(
-                                                  widget.isDark,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              const Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      'No saved logs yet',
-                                                      style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                      ),
-                                                    ),
-                                                    SizedBox(height: 3),
-                                                    Text(
-                                                      'Record a live-data log first, then return here to attach it.',
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    for (final log in availableLogs)
-                                      CheckboxListTile(
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                            ),
-                                        value: selectedLogs.contains(log.path),
-                                        title: Text(log.uri.pathSegments.last),
-                                        onChanged: (value) {
-                                          setState(
-                                            () => value == true
-                                                ? selectedLogs.add(log.path)
-                                                : selectedLogs.remove(log.path),
-                                          );
-                                          _scheduleDraftSave();
-                                        },
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 12),
-                          if (savedRequests.isNotEmpty) ...[
-                            Text(
-                              'Saved tuner requests',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            for (final request in savedRequests.take(5))
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.assignment_outlined),
-                                title: Text(
-                                  request.productLabel ?? request.vehicleLabel,
-                                ),
-                                subtitle: Text(
-                                  '${request.vehicleLabel} · ${requestStatusLabel(request.status)} · ${request.logFiles.length} log(s) · ${request.createdAt.day}/${request.createdAt.month}/${request.createdAt.year}',
-                                ),
-                                trailing: const Icon(
-                                  Icons.chevron_right_rounded,
-                                ),
-                                onTap: () => showRequestDetails(request),
-                              ),
-                            const SizedBox(height: 8),
-                          ],
-                          Card(
-                            margin: EdgeInsets.zero,
-                            color: AppPalette.surface(widget.isDark),
-                            child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(Icons.lock_outline_rounded, size: 20),
-                                  SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      'Calibration writing is locked. ${writePreflight.blockingReasons.isEmpty ? 'A validated programming backend is still required.' : writePreflight.blockingReasons.first}.',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                    _tunerRequestWorkspace = workspace;
-                    return _tunerRequestPageOpen
-                        ? const SizedBox.shrink()
-                        : const SizedBox.shrink();
-                  },
                 ),
               ],
             ),
@@ -1915,12 +716,6 @@ class _TuneScreenState extends State<TuneScreen> {
   VehicleIdentity? get connectedIdentity =>
       identityAvailable ? identifyVehicle(widget.vin) : null;
 
-  bool get s55Connected => connectedIdentity?.engine == 'S55';
-
-  bool get selectedProductCompatible {
-    return compatibilityReport.readyForProfessionalReview;
-  }
-
   TuneCompatibilityReport get compatibilityReport => assessTuneCompatibility(
     vehicle: connectedIdentity,
     product: selectedProduct,
@@ -1938,243 +733,6 @@ class _TuneScreenState extends State<TuneScreen> {
       sessionId: widget.sessionId.isEmpty ? null : widget.sessionId,
       source: widget.simulatorMode ? 'simulator' : 'live_enet',
       capturedAt: widget.identityCapturedAt,
-    ),
-  );
-
-  /// Resolves only read-only, evidence-gated capabilities. The vehicle profile
-  /// remains visible independently so a partial live read never hides an
-  /// existing feature from the user.
-  ResolvedEcuProfile? get resolvedEcuProfile {
-    final identity = connectedIdentity;
-    if (identity == null) return null;
-    return resolveEcuProfile(
-      identity: identity,
-      vehicleVin: widget.vin,
-      fingerprint: EcuFingerprint(
-        // The vehicle VIN is not proof that this DME belongs to it. Keep the
-        // fingerprint VIN empty until the transport exposes a DME-associated
-        // VIN, so the UI cannot overstate a family match as an exact match.
-        vin: '',
-        identity: widget.engineEcuIdentity ?? '',
-        boschHardware: widget.engineEcuSupplierHardware,
-        bmwHardware: widget.engineEcuHardware,
-        softwareId: widget.engineEcuSoftware,
-        calibrationId: widget.engineEcuCalibration,
-        bootloaderId: widget.engineEcuBootloader,
-        verified:
-            widget.connectionLabel == 'Connected' &&
-            widget.engineEcuDetected &&
-            _ecuFingerprintComplete,
-      ),
-    );
-  }
-
-  bool get _ecuFingerprintComplete => compatibilityReport.evidence.complete;
-
-  WritePreflight get writePreflight => WritePreflight(
-    profile: resolvedEcuProfile,
-    sessionVin: widget.vin,
-    ecuFingerprint: resolvedEcuProfile?.fingerprint,
-    transport: widget.simulatorMode ? 'simulator' : 'wired_enet',
-    externalPowerStable: false,
-    ignitionReady: false,
-    immutableBackupHash: importedStockFileHash,
-    packageSignatureVerified: false,
-    recoveryProcedureVerified: false,
-    backendValidated: false,
-  );
-}
-
-class _TuneProductSelector extends StatelessWidget {
-  const _TuneProductSelector({
-    required this.isDark,
-    required this.products,
-    required this.selectedProductId,
-    required this.identity,
-    required this.onSelected,
-  });
-
-  final bool isDark;
-  final List<TuneProduct> products;
-  final String selectedProductId;
-  final VehicleIdentity? identity;
-  final ValueChanged<TuneProduct> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = AppPalette.secondary(isDark);
-    final primary = Theme.of(context).colorScheme.primary;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Semantics(
-                header: true,
-                child: Text(
-                  'S55 remap',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                ),
-              ),
-            ),
-            Text('2 products', style: TextStyle(color: muted, fontSize: 12)),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Choose the calibration track before preparing your tuner package.',
-          style: TextStyle(color: muted, fontSize: 12),
-        ),
-        const SizedBox(height: 10),
-        for (var index = 0; index < products.length; index++) ...[
-          _TuneProductCard(
-            product: products[index],
-            selected: products[index].id == selectedProductId,
-            compatible:
-                identity != null && products[index].matchesVehicle(identity!),
-            identity: identity,
-            isDark: isDark,
-            primary: primary,
-            onTap: () => onSelected(products[index]),
-          ),
-          if (index != products.length - 1) const SizedBox(height: 8),
-        ],
-        const SizedBox(height: 8),
-        Text(
-          identity == null
-              ? 'Fitment is checked after a supported vehicle is identified.'
-              : 'Competition and CS trim must be confirmed separately; VIN data alone is not used to infer the product.',
-          style: TextStyle(color: muted, fontSize: 11, height: 1.3),
-        ),
-      ],
-    );
-  }
-}
-
-class _TuneProductCard extends StatelessWidget {
-  const _TuneProductCard({
-    required this.product,
-    required this.selected,
-    required this.compatible,
-    required this.identity,
-    required this.isDark,
-    required this.primary,
-    required this.onTap,
-  });
-
-  final TuneProduct product;
-  final bool selected;
-  final bool compatible;
-  final VehicleIdentity? identity;
-  final bool isDark;
-  final Color primary;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = AppPalette.secondary(isDark);
-    final surface = AppPalette.surface(isDark);
-    final statusLabel = compatible ? 'Vehicle match' : identityStatusLabel;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label:
-          '${product.displayName}, $statusLabel${selected ? ', selected' : ''}',
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(appCardRadius),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(appCardRadius),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: selected
-                  ? primary.withValues(alpha: isDark ? .12 : .07)
-                  : surface,
-              borderRadius: BorderRadius.circular(appCardRadius),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        product.displayName,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    Icon(
-                      selected
-                          ? Icons.radio_button_checked_rounded
-                          : Icons.radio_button_off_rounded,
-                      color: selected
-                          ? primary
-                          : compatible
-                          ? muted
-                          : muted.withValues(alpha: .65),
-                      size: 20,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  product.description,
-                  style: TextStyle(color: muted, fontSize: 12, height: 1.3),
-                ),
-                const SizedBox(height: 9),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    _TuneProductTag(label: product.fitment, color: primary),
-                    _TuneProductTag(
-                      label: statusLabel,
-                      color: compatible ? AppPalette.green : muted,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String get identityStatusLabel =>
-      identity == null ? 'Fitment pending' : 'Not compatible';
-}
-
-class _TuneProductTag extends StatelessWidget {
-  const _TuneProductTag({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: .10),
-      borderRadius: BorderRadius.circular(7),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
     ),
   );
 }
@@ -2314,8 +872,6 @@ class _TuneActionMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primaryActions = items.take(4).toList();
-    final requestAction = items.length > 4 ? items[4] : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2326,7 +882,7 @@ class _TuneActionMenu extends StatelessWidget {
               shrinkWrap: true,
               primary: false,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: primaryActions.length,
+              itemCount: items.length,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: columns,
                 crossAxisSpacing: 8,
@@ -2336,19 +892,11 @@ class _TuneActionMenu extends StatelessWidget {
               itemBuilder: (context, index) => _TuneActionTile(
                 isDark: isDark,
                 enabled: enabled,
-                item: primaryActions[index],
+                item: items[index],
               ),
             );
           },
         ),
-        if (requestAction != null) ...[
-          const SizedBox(height: 8),
-          _TuneRequestTile(
-            isDark: isDark,
-            enabled: enabled,
-            item: requestAction,
-          ),
-        ],
       ],
     );
   }
@@ -2431,78 +979,6 @@ class _TuneActionTile extends StatelessWidget {
       ),
     );
   }
-}
-
-class _TuneRequestTile extends StatelessWidget {
-  const _TuneRequestTile({
-    required this.isDark,
-    required this.enabled,
-    required this.item,
-  });
-
-  final bool isDark;
-  final bool enabled;
-  final _TuneActionItem item;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    enabled: enabled,
-    child: Material(
-      color: _tuneMenuSurface(isDark),
-      borderRadius: BorderRadius.circular(appCardRadius),
-      child: InkWell(
-        key: item.key,
-        onTap: enabled ? item.onTap : null,
-        borderRadius: BorderRadius.circular(appCardRadius),
-        child: Opacity(
-          opacity: enabled ? 1 : .45,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppPalette.blue.withValues(alpha: isDark ? .2 : .12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(item.icon, color: AppPalette.blue, size: 19),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item.subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppPalette.secondary(isDark),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(Icons.arrow_forward_rounded, color: AppPalette.blue),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
 }
 
 class _UnlockStatusPage extends StatelessWidget {
@@ -2915,193 +1391,6 @@ class _EcuIdentityField extends StatelessWidget {
   }
 }
 
-class _MapSlot extends StatelessWidget {
-  const _MapSlot({
-    required this.label,
-    required this.file,
-    required this.metadata,
-    required this.onPressed,
-  });
-  final String label;
-  final File? file;
-  final Map<String, dynamic>? metadata;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    container: true,
-    label: file == null
-        ? '$label, no file selected'
-        : '$label, ${file!.uri.pathSegments.last}',
-    child: Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: .28),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  file == null
-                      ? label
-                      : '$label · ${file!.uri.pathSegments.last}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: onPressed,
-                icon: Icon(
-                  file == null
-                      ? Icons.upload_file_outlined
-                      : Icons.swap_horiz_rounded,
-                  size: 17,
-                ),
-                label: Text(file == null ? 'Choose file' : 'Replace file'),
-              ),
-            ],
-          ),
-          if (metadata != null)
-            Text(
-              '${_formatBytes(metadata!['size'] as int)} · SHA-256 ${('${metadata!['hash']}').substring(0, 12)}…',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          if (metadata?['inspection'] is Map) ...[
-            const SizedBox(height: 4),
-            _MapInspectionSummary(
-              inspection: Map<String, dynamic>.from(
-                metadata!['inspection'] as Map,
-              ),
-            ),
-          ],
-        ],
-      ),
-    ),
-  );
-
-  String _formatBytes(int bytes) => bytes < 1024 * 1024
-      ? '${(bytes / 1024).toStringAsFixed(1)} KB'
-      : '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
-}
-
-class _MapInspectionSummary extends StatelessWidget {
-  const _MapInspectionSummary({required this.inspection});
-
-  final Map<String, dynamic> inspection;
-
-  @override
-  Widget build(BuildContext context) {
-    final provider = inspection['provider'] as String?;
-    final revision = inspection['revision'] as String?;
-    final isManifest = inspection['kind'] == 'provider_manifest';
-    final color = isManifest ? AppPalette.blue : AppPalette.orange;
-    final summary = isManifest
-        ? 'Provider manifest · signature ${inspection['signature_status']}'
-        : 'Opaque artifact · professional review only';
-    final details = [
-      summary,
-      if (provider != null && provider.isNotEmpty) 'Provider: $provider',
-      if (revision != null && revision.isNotEmpty) 'Revision: $revision',
-    ].join('\n');
-    return Semantics(
-      label: details,
-      child: Container(
-        margin: const EdgeInsets.only(top: 4),
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: .08),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              isManifest ? Icons.verified_outlined : Icons.visibility_outlined,
-              size: 17,
-              color: color,
-            ),
-            const SizedBox(width: 7),
-            Expanded(
-              child: Text(
-                details,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ComparisonSummary extends StatelessWidget {
-  const _ComparisonSummary({required this.original, required this.comparison});
-  final Map<String, dynamic> original;
-  final Map<String, dynamic> comparison;
-
-  @override
-  Widget build(BuildContext context) {
-    final identical = original['hash'] == comparison['hash'];
-    final color = identical ? AppPalette.orange : AppPalette.blue;
-    final status = identical
-        ? 'Files match byte-for-byte. Review only.'
-        : 'Files differ. Review only.';
-    return Semantics(
-      label: status,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: .10),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  identical ? Icons.info_outline : Icons.compare_arrows_rounded,
-                  color: color,
-                  size: 19,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  identical
-                      ? 'Files match byte-for-byte'
-                      : 'Files differ · review only',
-                  style: TextStyle(color: color, fontWeight: FontWeight.w800),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Original: ${_size(original['size'] as int)} · imported ${_time(original['imported'] as DateTime)}',
-            ),
-            Text(
-              'Comparison: ${_size(comparison['size'] as int)} · imported ${_time(comparison['imported'] as DateTime)}',
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Byte comparison only · no calibration interpretation or writing is enabled.',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _size(int bytes) => bytes < 1024 * 1024
-      ? '${(bytes / 1024).toStringAsFixed(1)} KB'
-      : '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
-  String _time(DateTime value) => '${value.day}/${value.month}/${value.year}';
-}
-
 class _CheckResult extends StatelessWidget {
   const _CheckResult({
     required this.label,
@@ -3253,144 +1542,1873 @@ class _TuneReadinessPanel extends StatelessWidget {
   }
 }
 
-class _TunerRequestPage extends StatelessWidget {
-  const _TunerRequestPage({
-    required this.isDark,
-    required this.revision,
-    required this.workspace,
-  });
-
-  final bool isDark;
-  final ValueListenable<int> revision;
-  final Widget Function() workspace;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: AppPalette.background(isDark),
-    appBar: AppBar(title: const Text('Tuner Request')),
-    body: ValueListenableBuilder<int>(
-      valueListenable: revision,
-      builder: (context, value, _) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-        child: workspace(),
-      ),
-    ),
-  );
-}
+enum _TuneActionKind { installMap, restoreStock }
 
 class _TuneActionPage extends StatefulWidget {
   const _TuneActionPage({
     required this.isDark,
     required this.title,
     required this.icon,
-    required this.message,
-    required this.detail,
-    this.products,
-    this.selectedProduct,
-    this.identity,
-    this.onProductSelected,
+    required this.vin,
+    required this.engine,
+    required this.identity,
+    required this.software,
+    required this.hardware,
+    required this.bootloader,
+    required this.calibration,
+    required this.sessionId,
+    required this.connectionLabel,
+    required this.engineEcuDetected,
+    required this.action,
+    required this.realVehicle,
+    required this.onBeforeRead,
+    required this.onAfterRead,
   });
 
   final bool isDark;
   final String title;
   final IconData icon;
-  final String message;
-  final String detail;
-  final List<TuneProduct>? products;
-  final TuneProduct? selectedProduct;
-  final VehicleIdentity? identity;
-  final ValueChanged<TuneProduct>? onProductSelected;
+  final String vin;
+  final String? engine;
+  final String? identity;
+  final String? software;
+  final String? hardware;
+  final String? bootloader;
+  final String? calibration;
+  final String sessionId;
+  final String connectionLabel;
+  final bool engineEcuDetected;
+  final _TuneActionKind action;
+  final bool realVehicle;
+  final Future<void> Function() onBeforeRead;
+  final Future<void> Function() onAfterRead;
 
   @override
   State<_TuneActionPage> createState() => _TuneActionPageState();
 }
 
 class _TuneActionPageState extends State<_TuneActionPage> {
-  TuneProduct? selectedProduct;
+  final _identityCapturedAt = DateTime.now();
+  final _stockStore = StockFileStore();
+  CalibrationArtifactInspection? _mapInspection;
+  Map<String, dynamic>? _binMetadata;
+  File? _mapSourceFile;
+  List<StockFileBackup> _stockFiles = [];
+  File? _selectedStockFile;
+  CalibrationArtifactInspection? _stockInspection;
+  Map<String, dynamic>? _stockMetadata;
+  bool _loading = false;
+  String? _error;
 
-  @override
-  void initState() {
-    super.initState();
-    selectedProduct = widget.selectedProduct;
+  String? _codingBackupPath;
+  String? _preparationStatus;
+  String? _operationStatus;
+  String? _operationEvidence;
+  String? _preflightReportPath;
+  String? _recoveryPreflightReportPath;
+
+  String? _recoveryPlanPath;
+  String? _recoveryEvidence;
+  bool _recoveryReady = false;
+  int _totalStages = 10;
+  String? _recoveryReviewStatus;
+
+  List<Map<String, dynamic>> _savedOperations = [];
+  bool _historyLoading = false;
+  String? _historyError;
+  String? _conditionStatus;
+  String? _conditionReportPath;
+  String? _agentStateStatus;
+  String? _lastOperationKind;
+  String? _operationBlockReason;
+  Map<String, dynamic>? _programmingAccessEvidence;
+  String? _programmingAccessStatus;
+  bool _operationRunning = false;
+  bool _operationExecuting = false;
+  bool _operationRecovery = false;
+
+  Future<void> _checkProgrammingAccess() async {
+    if (_loading ||
+        _historyLoading ||
+        _recoveryRequired ||
+        !widget.realVehicle ||
+        widget.bootloader == null) {
+      return;
+    }
+    final connection = ValueNotifier(widget.connectionLabel);
+    final wasPrepared = _lastOperationKind == 'prepared_without_write_approval';
+    setState(() {
+      _loading = true;
+      _operationReady = false;
+      _recoveryReady = false;
+      if (!wasPrepared) {
+        _lastOperationKind = null;
+        _operationStatus = null;
+        _operationBlockReason = null;
+      }
+      _programmingAccessEvidence = null;
+      _error = null;
+    });
+    try {
+      final accessAccepted = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => DmePreparation2Screen(
+            vin: widget.vin,
+            currentBootloader: widget.bootloader!,
+            connectionStatus: connection,
+            isDark: widget.isDark,
+            onBeforeSend: widget.onBeforeRead,
+            onAfterSend: widget.onAfterRead,
+            accessCheckOnly: true,
+          ),
+        ),
+      );
+      final support = await getApplicationSupportDirectory();
+      final safety =
+          jsonDecode(
+                await rust_vehicle.initializeVehicleSafety(
+                  rootDirectory: support.path,
+                ),
+              )
+              as Map<String, dynamic>;
+      if (mounted) {
+        setState(() {
+          _programmingAccessStatus =
+              accessAccepted == true
+              ? 'Programming access accepted. Writing still requires support for this BIN and DME.'
+              : null;
+          if (safety['blocked'] != false) {
+            _recoveryRequired = true;
+            _error =
+                'Programming-access result needs review. Live polling remains paused.';
+            _operationStatus = jsonEncode(safety);
+          }
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _recoveryRequired = true;
+          _error = 'Could not inspect the programming-access outcome: $error';
+        });
+      }
+    } finally {
+      connection.dispose();
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final foreground = Theme.of(context).colorScheme.onSurface;
-    final muted = widget.isDark
-        ? const Color(0xFF9DA8B8)
-        : const Color(0xFF58677B);
-    return Scaffold(
-      backgroundColor: AppPalette.background(widget.isDark),
-      appBar: AppBar(title: Text(widget.title)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppPalette.surface(widget.isDark),
-              borderRadius: BorderRadius.circular(appCardRadius),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(widget.icon, color: AppPalette.blue, size: 30),
-                const SizedBox(height: 18),
-                Text(
-                  widget.message,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: foreground,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  widget.detail,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(color: muted, height: 1.45),
-                ),
-              ],
-            ),
+  Future<void> _importAgentState() async {
+    if (_loading || _historyLoading) return;
+    final selected = await openFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Agent vehicle data', extensions: ['coding', 'json']),
+      ],
+    );
+    if (selected == null || !mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import historical agent state?'),
+        content: Text(
+          'Vehicle: ${widget.vin}\nFile: ${selected.name}\n\nUses the saved unlock confirmation and flash-result flags for workflow selection. These flags do not verify the DME is unlocked. Coding data from this file will not be restored. Fresh DME identity must match before the flags can be used.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
-          if (widget.products != null) ...[
-            const SizedBox(height: 20),
-            _TuneProductSelector(
-              isDark: widget.isDark,
-              products: widget.products!,
-              selectedProductId: selectedProduct!.id,
-              identity: widget.identity,
-              onSelected: (product) {
-                setState(() => selectedProduct = product);
-                widget.onProductSelected?.call(product);
-              },
-            ),
-          ],
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppPalette.orange.withValues(
-                alpha: widget.isDark ? .12 : .08,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline_rounded, color: AppPalette.orange),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'No ECU programming or calibration writing is enabled.',
-                  ),
-                ),
-              ],
-            ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Import state'),
           ),
         ],
       ),
     );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _loading = true;
+      _operationReady = false;
+      _recoveryReady = false;
+      _lastOperationKind = null;
+      _error = null;
+    });
+    try {
+      final raw = await rust_vehicle.importN20AgentState(
+        expectedVin: widget.vin,
+        sourcePath: selected.path,
+        confirmed: true,
+      );
+      final result = jsonDecode(raw) as Map<String, dynamic>;
+      final state = result['agent_state'] as Map<String, dynamic>;
+      if (mounted) {
+        setState(() {
+          _agentStateStatus =
+              'Historical state saved: unlock confirmed ${state['unlockDone']}, last flash successful ${state['lastFlashSuccess']}, recovery needed ${state['needsRecovery']}, prior type ${state['lastFlashType'] ?? 'not recorded'}. Prepare a fresh operation to check identity and resolve workflow state.\n${result['path']}';
+          _operationStatus =
+              'Agent state changed. Prepare a fresh operation before writing.';
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = 'Agent state import stopped: $error');
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
+
+  Future<void> _loadSavedOperations() async {
+    if (_loading || _historyLoading) {
+      return;
+    }
+    setState(() {
+      _historyLoading = true;
+      _historyError = null;
+    });
+    try {
+      final support = await getApplicationSupportDirectory();
+      final raw = await rust_vehicle.listN20SavedOperations(
+        rootDirectory: support.path,
+        expectedVin: widget.vin,
+      );
+      final result = jsonDecode(raw) as Map<String, dynamic>;
+      final entries = (result['operations'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      final uncertain = entries.any(
+        (e) => e['vin_verified'] == true && e['may_have_changed'] == true,
+      );
+      if (uncertain && !_recoveryRequired) {
+        if (mounted) {
+          setState(() => _recoveryRequired = true);
+        }
+        await widget.onBeforeRead();
+      }
+      if (mounted) {
+        setState(() => _savedOperations = entries);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _historyError = 'Saved-operation inspection failed: $error',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _historyLoading = false);
+      }
+    }
+  }
+
+  Future<void> _loadSavedOperation(Map<String, dynamic> entry) async {
+    if (_loading || _historyLoading || entry['can_load'] != true) {
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final folder = entry['directory'] as String;
+      final source = File('$folder${Platform.pathSeparator}selected.bin');
+      final inspection = await _inspectMapArtifact(source);
+      final metadata =
+          widget.engine == 'N20' && inspection.partialPreview != null
+          ? jsonDecode(
+                  await rust_vehicle.inspectN20BinMetadata(
+                    binPath: source.path,
+                    binSha256: inspection.sha256,
+                  ),
+                )
+                as Map<String, dynamic>
+          : null;
+      if (inspection.sha256 != entry['image_sha256']) {
+        throw StateError('Saved image changed after inspection');
+      }
+      final recovery = entry['kind'] == 'recovery';
+      if (mounted) {
+        setState(() {
+          _mapSourceFile = source;
+          _mapInspection = inspection;
+          _binMetadata = metadata;
+          _fullFlash = entry['kind'] == 'full';
+          _lastOperationKind = null;
+          _binStock = entry['bin_stock'] as bool?;
+          _operationReady = false;
+          _recoveryReady = false;
+          _operationEvidence = recovery ? null : folder;
+          _recoveryEvidence = recovery ? folder : null;
+          _recoveryPlanPath = recovery
+              ? '$folder${Platform.pathSeparator}recovery-plan.json'
+              : null;
+          _codingBackupPath =
+              '$folder${Platform.pathSeparator}${recovery ? 'original-coding.json' : 'coding.json'}';
+          _preparationStatus =
+              'Original saved coding loaded. Fresh DME checks are still required.';
+          _operationStatus =
+              'Saved evidence loaded for review. No operation was resumed.';
+          _preflightReportPath = null;
+          _recoveryPreflightReportPath = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = 'Could not load saved evidence: $error');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _queryProgrammingConditions() async {
+    if (_loading || _historyLoading || !widget.realVehicle) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Query programming conditions?'),
+        content: const Text(
+          'Runs the agent programming-condition routine on the connected bench DME. This is a separate diagnostic action and does not start flashing. Returned labels do not approve programming.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Run query'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    final wasUncertain = _recoveryRequired;
+    var paused = false;
+    setState(() {
+      _loading = true;
+      _error = null;
+      _conditionStatus = 'Checking the bench DME identity...';
+      _conditionReportPath = null;
+    });
+    try {
+      final support = await getApplicationSupportDirectory();
+      await widget.onBeforeRead();
+      paused = true;
+      if (mounted) {
+        setState(() => _recoveryRequired = true);
+      }
+      await for (final event in rust_vehicle.queryN20ProgrammingPreconditions(
+        expectedVin: widget.vin,
+        expectedSoftware: widget.software ?? '',
+        confirmed: true,
+        outputDirectory:
+            '${support.path}${Platform.pathSeparator}n20_condition_queries',
+      )) {
+        if (mounted) {
+          setState(() {
+            _conditionStatus = event.message;
+            if (event.kind == 'diagnostic_complete') {
+              _recoveryRequired = wasUncertain;
+              _conditionReportPath =
+                  '${event.evidencePath}${Platform.pathSeparator}conditions.json';
+            }
+            if (event.kind == 'diagnostic_uncertain') {
+              _recoveryRequired = true;
+              _error = event.message;
+            }
+            if (event.kind == 'error') {
+              _recoveryRequired = wasUncertain;
+              _error = event.message;
+            }
+          });
+        }
+      }
+    } catch (error) {
+      if (paused) {
+        _recoveryRequired = true;
+      }
+      if (mounted) {
+        setState(() => _error = 'Condition query stopped: $error');
+      }
+    } finally {
+      if (paused && !wasUncertain && !_recoveryRequired) {
+        try {
+          await widget.onAfterRead();
+        } catch (error) {
+          if (mounted) {
+            setState(() => _error = 'Vehicle reconnect failed: $error');
+          }
+        }
+      }
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _prepareRecoveryPlan() async {
+    final source = _mapSourceFile;
+    final inspection = _mapInspection;
+    final original = _operationEvidence;
+    if (_loading || source == null || inspection == null || original == null) {
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+      _recoveryPlanPath = null;
+      _recoveryReady = false;
+      _recoveryReviewStatus =
+          'Reviewing the software/calibration rewrite and original coding...';
+    });
+    try {
+      final support = await getApplicationSupportDirectory();
+      final path = await rust_vehicle.prepareN20RecoveryPlan(
+        expectedVin: widget.vin,
+        binPath: source.path,
+        binSha256: inspection.sha256,
+        originalOperationDirectory: original,
+        outputDirectory:
+            '${support.path}${Platform.pathSeparator}n20_recovery_reviews',
+      );
+      if (mounted) {
+        setState(() {
+          _recoveryPlanPath = path;
+          _recoveryReviewStatus =
+              'Recovery plan saved for six software/calibration regions. Check the responding DME next. Execution requires a separate reviewed full-rewrite profile. No ECU requests were sent.';
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = 'Recovery review stopped: $error');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  bool _operationReady = false;
+  bool _fullFlash = false;
+  bool? _binStock;
+  bool _recoveryRequired = false;
+  int _completedStages = 0;
+  bool _flashGateStarted = false;
+  bool _flashStagesStarted = false;
+  bool _flashWorkflowFailed = false;
+
+  Future<void> _prepareFlashOperation() => _runFlashOperation(execute: false);
+
+  Future<void> _confirmFlashOperation() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          _fullFlash
+              ? 'Write full software and calibration?'
+              : 'Write the selected BIN?',
+        ),
+        content: Text(
+          'Target: ${widget.vin}\nBIN SHA-256: ${_mapInspection?.sha256}\n\n${_fullFlash ? 'Six software/calibration regions, 3,931,392 bytes. Startup memory is excluded. This is an ordinary full flash, separate from recovery.\n\n' : ''}Confirm the bench supply and recovery equipment are ready. Programming must finish before disconnecting power.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Start writing'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted && _operationReady) {
+      await _runFlashOperation(execute: true);
+    }
+  }
+
+  Future<void> _prepareRecoveryOperation() =>
+      _runFlashOperation(execute: false, recovery: true);
+
+  Future<void> _confirmRecoveryOperation() async {
+    if (_loading || !_recoveryReady) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rewrite software and calibration?'),
+        content: Text(
+          'Target: ${widget.vin}\nBIN SHA-256: ${_mapInspection?.sha256}\n\nThis rewrites all six software/calibration regions and restores the original saved coding. Startup memory is excluded. Keep bench power connected throughout.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Start recovery'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted && _recoveryReady) {
+      await _runFlashOperation(execute: true, recovery: true);
+    }
+  }
+
+  Future<void> _runFlashOperation({
+    required bool execute,
+    bool recovery = false,
+  }) async {
+    final source = _mapSourceFile;
+    final inspection = _mapInspection;
+    if (_loading ||
+        _historyLoading ||
+        (_recoveryRequired && !recovery) ||
+        (recovery && _recoveryPlanPath == null) ||
+        source == null ||
+        inspection == null ||
+        !widget.realVehicle) {
+      return;
+    }
+    final wasRecoveryRequired = _recoveryRequired;
+    final full = !recovery && _fullFlash;
+    setState(() {
+      _loading = true;
+      _error = null;
+      _operationStatus = recovery
+          ? (execute
+                ? 'Starting recovery...'
+                : 'Checking recovery readiness...')
+          : full
+          ? (execute
+                ? 'Starting full software/calibration flash...'
+                : 'Preparing full software/calibration operation...')
+          : (execute
+                ? 'Starting flash operation...'
+                : 'Preparing the operation...');
+      _operationReady = false;
+      _recoveryReady = false;
+      _totalStages = recovery || full ? 16 : 10;
+      _operationRunning = true;
+      _operationBlockReason = null;
+      _programmingAccessEvidence = null;
+      _programmingAccessStatus = null;
+      _operationExecuting = execute;
+      _operationRecovery = recovery;
+      _lastOperationKind = null;
+      _completedStages = 0;
+      _flashGateStarted = false;
+      _flashStagesStarted = false;
+      _flashWorkflowFailed = false;
+      _recoveryRequired = execute || wasRecoveryRequired;
+      if (recovery) {
+        _recoveryEvidence = null;
+        _recoveryPreflightReportPath = null;
+      } else {
+        _operationEvidence = null;
+        _preflightReportPath = null;
+        _recoveryPlanPath = null;
+        _recoveryEvidence = null;
+        _recoveryPreflightReportPath = null;
+      }
+    });
+    var paused = false;
+    try {
+      final support = await getApplicationSupportDirectory();
+      await widget.onBeforeRead();
+      paused = true;
+      final events = recovery
+          ? (execute
+                ? rust_vehicle.startN20RecoveryOperation(
+                    expectedVin: widget.vin,
+                    binSha256: inspection.sha256,
+                    planPath: _recoveryPlanPath!,
+                    confirmed: true,
+                    outputDirectory:
+                        '${support.path}${Platform.pathSeparator}n20_recovery_operations',
+                  )
+                : rust_vehicle.prepareN20RecoveryOperation(
+                    expectedVin: widget.vin,
+                    binSha256: inspection.sha256,
+                    planPath: _recoveryPlanPath!,
+                    outputDirectory:
+                        '${support.path}${Platform.pathSeparator}n20_recovery_operations',
+                  ))
+          : full
+          ? (execute
+                ? rust_vehicle.startN20FullFlashOperation(
+                    binStock: _binStock,
+                    expectedVin: widget.vin,
+                    expectedSoftware: widget.software ?? '',
+                    binPath: source.path,
+                    binSha256: inspection.sha256,
+                    outputDirectory:
+                        '${support.path}${Platform.pathSeparator}n20_full_operations',
+                    confirmed: true,
+                  )
+                : rust_vehicle.prepareN20FullFlashOperation(
+                    binStock: _binStock,
+                    expectedVin: widget.vin,
+                    expectedSoftware: widget.software ?? '',
+                    binPath: source.path,
+                    binSha256: inspection.sha256,
+                    outputDirectory:
+                        '${support.path}${Platform.pathSeparator}n20_full_operations',
+                  ))
+          : execute
+          ? rust_vehicle.startN20FlashOperation(
+              binStock: _binStock,
+              expectedVin: widget.vin,
+              expectedSoftware: widget.software ?? '',
+              binPath: source.path,
+              binSha256: inspection.sha256,
+              outputDirectory:
+                  '${support.path}${Platform.pathSeparator}n20_flash_operations',
+              confirmed: true,
+            )
+          : rust_vehicle.prepareN20FlashOperation(
+              binStock: _binStock,
+              expectedVin: widget.vin,
+              expectedSoftware: widget.software ?? '',
+              binPath: source.path,
+              binSha256: inspection.sha256,
+              outputDirectory:
+                  '${support.path}${Platform.pathSeparator}n20_flash_operations',
+            );
+      await for (final event in events) {
+        String? blockReason;
+        Map<String, dynamic>? accessEvidence;
+        if ((event.kind == 'blocked' || event.kind == 'preflight_report') &&
+            !recovery &&
+            event.evidencePath.isNotEmpty) {
+          try {
+            final reportFile = File(
+              '${event.evidencePath}${Platform.pathSeparator}preflight-observations.json',
+            );
+            if (await reportFile.length() <= 1024 * 1024) {
+              final report =
+                  jsonDecode(await reportFile.readAsString())
+                      as Map<String, dynamic>;
+              final dispatch =
+                  report['agent_dispatch'] as Map<String, dynamic>?;
+              accessEvidence =
+                  report['programming_access_evidence']
+                      as Map<String, dynamic>?;
+              final compatibility =
+                  report['bin_compatibility'] as Map<String, dynamic>?;
+              final rawReasons =
+                  dispatch != null && dispatch['resolved'] == false
+                  ? dispatch['missing_requirements']
+                  : compatibility == null
+                  ? null
+                  : compatibility['blocking_reasons'];
+              final reasons = rawReasons is List ? rawReasons : null;
+              if (reasons != null &&
+                  reasons.isNotEmpty &&
+                  reasons.first is String) {
+                final reason = reasons.first as String;
+                blockReason = reason.length > 200
+                    ? '${reason.substring(0, 200)}…'
+                    : reason;
+              }
+            }
+          } catch (_) {
+            // The complete native reason remains available in check details.
+          }
+        }
+        if (event.kind == 'security_challenge') {
+          try {
+            final key = await SecurityResponseProvider.calculate(
+              currentBootloader: event.bootloader,
+              seed: event.seed,
+            );
+            await rust_vehicle.provideN20OperationKey(
+              requestId: event.requestId,
+              key: Uint8List.fromList(key),
+            );
+          } catch (error) {
+            await rust_vehicle.rejectN20OperationKey(
+              requestId: event.requestId,
+              reason: 'Security calculation failed: $error',
+            );
+          }
+        }
+        if (mounted) {
+          setState(() {
+            _operationStatus = event.message;
+            _lastOperationKind = event.kind;
+            if (accessEvidence != null) {
+              _programmingAccessEvidence = accessEvidence;
+            }
+            if (event.kind == 'blocked') _operationBlockReason = blockReason;
+            if (event.kind == 'preflight_report') {
+              final path =
+                  '${event.evidencePath}${Platform.pathSeparator}preflight-observations.json';
+              if (recovery) {
+                _recoveryPreflightReportPath = path;
+              } else {
+                _preflightReportPath = path;
+              }
+            }
+            if (event.kind == 'stage' || event.kind == 'complete') {
+              _completedStages = event.completedStages;
+              _flashStagesStarted = true;
+            }
+            if (event.kind == 'gate_check' || event.kind == 'power_check') {
+              _flashGateStarted = true;
+            }
+            if (event.kind == 'error' ||
+                event.kind == 'blocked' ||
+                event.kind == 'recovery_required') {
+              _flashWorkflowFailed = true;
+            }
+            _operationReady = !recovery && event.kind == 'ready';
+            _recoveryReady = recovery && event.kind == 'ready';
+            if (event.kind == 'complete' ||
+                event.kind == 'error' ||
+                event.kind == 'prepared_without_write_approval' ||
+                event.kind == 'blocked') {
+              _recoveryRequired = event.kind == 'complete'
+                  ? false
+                  : wasRecoveryRequired;
+            }
+            if (event.kind == 'recovery_required') {
+              _recoveryRequired = true;
+              _error = event.message;
+            }
+            if (event.evidencePath.isNotEmpty) {
+              if (recovery) {
+                _recoveryEvidence = event.evidencePath;
+              } else {
+                _operationEvidence = event.evidencePath;
+              }
+            }
+            if (event.kind == 'error') {
+              _error = event.message;
+            }
+          });
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = 'Flash operation stopped: $error';
+          _flashWorkflowFailed = true;
+        });
+      }
+    } finally {
+      // Resume polling only when the worker reports a known safe terminal state.
+      if (paused && !_recoveryRequired) {
+        try {
+          await widget.onAfterRead();
+        } catch (error) {
+          if (mounted) {
+            setState(() => _error = 'Vehicle reconnect failed: $error');
+          }
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _operationRunning = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _readCodingBackup() async {
+    final source = _mapSourceFile;
+    final inspection = _mapInspection;
+    if (_loading ||
+        _historyLoading ||
+        _recoveryRequired ||
+        source == null ||
+        inspection == null ||
+        !widget.realVehicle) {
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+      _codingBackupPath = null;
+      _operationReady = false;
+      _preparationStatus = 'Pausing the live session…';
+    });
+    var paused = false;
+    try {
+      final support = await getApplicationSupportDirectory();
+      await widget.onBeforeRead();
+      paused = true;
+      if (mounted) {
+        setState(
+          () => _preparationStatus =
+              'Checking the DME and reading coding sections…',
+        );
+      }
+      final path = await rust_vehicle.readN20FlashCodingBackup(
+        expectedVin: widget.vin,
+        expectedSoftware: widget.software ?? '',
+        binPath: source.path,
+        binSha256: inspection.sha256,
+        outputDirectory:
+            '${support.path}${Platform.pathSeparator}n20_flash_preparation',
+      );
+      if (mounted) {
+        setState(() {
+          _codingBackupPath = path;
+          _preparationStatus = 'Coding backup saved. No ECU data was written.';
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = 'Coding backup stopped: $error';
+          _preparationStatus = 'Preparation incomplete';
+        });
+      }
+    } finally {
+      if (paused) {
+        try {
+          await widget.onAfterRead();
+        } catch (error) {
+          if (mounted) {
+            setState(() => _error = 'Vehicle reconnect failed: $error');
+          }
+        }
+      }
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.action == _TuneActionKind.restoreStock) {
+      _loadStockFiles();
+    } else if (widget.engine == 'N20') {
+      _loadSavedOperations();
+    }
+  }
+
+  Future<void> _chooseMap() async {
+    final selected = await openFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(
+          label: 'Calibration files',
+          extensions: ['bmap', 'bin', 'ori', 'hex', 'json'],
+        ),
+      ],
+    );
+    if (selected == null) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+      _operationReady = false;
+      _recoveryReady = false;
+      _lastOperationKind = null;
+    });
+    try {
+      final source = File(selected.path);
+      final inspection = await _inspectMapArtifact(source);
+      final metadata =
+          widget.engine == 'N20' && inspection.partialPreview != null
+          ? jsonDecode(
+                  await rust_vehicle.inspectN20BinMetadata(
+                    binPath: source.path,
+                    binSha256: inspection.sha256,
+                  ),
+                )
+                as Map<String, dynamic>
+          : null;
+      if (mounted) {
+        setState(() {
+          _mapSourceFile = source;
+          _mapInspection = inspection;
+          _binMetadata = metadata;
+          _codingBackupPath = null;
+          _binStock = null;
+          _lastOperationKind = null;
+          _operationReady = false;
+          _preparationStatus = null;
+          _operationStatus = null;
+          _operationEvidence = null;
+          _preflightReportPath = null;
+          _recoveryPreflightReportPath = null;
+          _recoveryPlanPath = null;
+          _recoveryReady = false;
+          _recoveryReviewStatus = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = 'Could not inspect file: $error');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<CalibrationArtifactInspection> _inspectMapArtifact(File file) =>
+      inspectCalibrationArtifact(
+        file,
+        softwareIdToken: widget.software == null
+            ? null
+            : rawDmeComponentId(widget.software!),
+      );
+
+  Future<void> _createBimmerScopePackage() async {
+    final source = _mapSourceFile;
+    if (source == null || !await source.exists()) return;
+    final baseName = source.uri.pathSegments.last.replaceFirst(
+      RegExp(r'\.[^.]+$'),
+      '',
+    );
+    final location = await getSaveLocation(
+      suggestedName: '$baseName.bmap',
+      confirmButtonText: 'Create package',
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'BimmerScope map package', extensions: ['bmap']),
+      ],
+    );
+    if (location == null || !mounted) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final vehicleContext = <String, String>{
+        if (widget.vin.isNotEmpty) 'vin': widget.vin,
+        if (widget.engine != null) 'engine': widget.engine!,
+        if (widget.identity != null) 'dme_identity': widget.identity!,
+        if (widget.hardware != null) 'hardware': widget.hardware!,
+        if (widget.software != null) 'software': widget.software!,
+        if (widget.bootloader != null) 'bootloader': widget.bootloader!,
+        if (widget.calibration != null) 'calibration': widget.calibration!,
+      };
+      final package = await createBimmerScopeMapPackage(
+        source: source,
+        target: File(location.path),
+        vehicleContext: vehicleContext,
+      );
+      final inspection = await _inspectMapArtifact(package);
+      if (mounted) {
+        setState(() {
+          _mapSourceFile = package;
+          _binStock = null;
+          _mapInspection = inspection;
+          _binMetadata = null;
+          _operationReady = false;
+          _recoveryReady = false;
+          _lastOperationKind = null;
+          _operationStatus = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'BimmerScope package created: ${package.uri.pathSegments.last}',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = 'Could not create package: $error');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadStockFiles() async {
+    setState(() => _loading = true);
+    try {
+      final files = await _stockStore.loadAll(widget.vin);
+      if (!mounted) return;
+      setState(() {
+        _stockFiles = files;
+        _selectedStockFile ??= files.firstOrNull?.file;
+      });
+      if (_selectedStockFile != null) await _inspectStock(_selectedStockFile!);
+    } catch (error) {
+      if (mounted)
+        setState(() => _error = 'Could not load saved files: $error');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _importStockFile() async {
+    final selected = await openFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(
+          label: 'Stock or DME files',
+          extensions: ['bin', 'ori', 'hex'],
+        ),
+      ],
+    );
+    if (selected == null) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final saved = await _stockStore.importFile(
+        sourcePath: selected.path,
+        vin: widget.vin,
+        metadata: const {
+          'source': 'user_import',
+          'compatibility': 'unverified',
+        },
+      );
+      if (!mounted) return;
+      setState(() {
+        _stockFiles = [saved, ..._stockFiles];
+        _selectedStockFile = saved.file;
+      });
+      await _inspectStock(saved.file);
+    } catch (error) {
+      if (mounted)
+        setState(() => _error = 'Could not save selected file: $error');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _inspectStock(File file) async {
+    try {
+      final inspection = await inspectCalibrationArtifact(file);
+      final metadataFile = File('${file.path}.metadata.json');
+      final legacyMetadataFile = File('${file.path}.json');
+      final sidecar = await metadataFile.exists()
+          ? metadataFile
+          : legacyMetadataFile;
+      Map<String, dynamic>? metadata;
+      if (await sidecar.exists()) {
+        try {
+          final decoded = jsonDecode(await sidecar.readAsString());
+          if (decoded is Map<String, dynamic> &&
+              decoded['sha256'] == inspection.sha256) {
+            metadata = decoded;
+          }
+        } catch (_) {
+          // The binary remains reviewable when its optional sidecar is bad.
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _stockInspection = inspection;
+          _stockMetadata = metadata;
+        });
+      }
+    } catch (error) {
+      if (mounted)
+        setState(() => _error = 'Could not inspect saved file: $error');
+    }
+  }
+
+  Widget _artifactDetails(
+    CalibrationArtifactInspection? inspection,
+    String emptyMessage,
+  ) {
+    if (inspection == null) return Text(emptyMessage);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SelectableText(inspection.fileName),
+        const SizedBox(height: 6),
+        Text('${inspection.size} bytes · ${inspection.kind}'),
+        if (inspection.provider != null)
+          Text('Provider: ${inspection.provider}'),
+        if (inspection.revision != null)
+          Text('Revision: ${inspection.revision}'),
+        if (inspection.packageMetadata != null &&
+            inspection.kind == 'bimmerscope_map_package') ...[
+          const SizedBox(height: 6),
+          if (inspection.packageMetadata!['source_file'] case final value?)
+            Text('Original file: $value'),
+          if (inspection.packageMetadata!['payload_size'] case final value?)
+            Text('Original size: $value bytes'),
+          if (inspection.packageMetadata!['payload_sha256'] case final value?)
+            SelectableText('Original file SHA-256: $value'),
+          const Padding(
+            padding: EdgeInsets.only(top: 8, bottom: 4),
+            child: Text(
+              'Vehicle identity recorded at packaging (context only)',
+            ),
+          ),
+          for (final entry in inspection.packageMetadata!.entries.where(
+            (entry) => !const {
+              'source_file',
+              'payload_size',
+              'payload_sha256',
+            }.contains(entry.key),
+          ))
+            Text('${_vehicleContextLabel(entry.key)}: ${entry.value}'),
+        ],
+        if (inspection.declaredCompatibility != null)
+          Text(
+            'Declared compatibility: ${jsonEncode(inspection.declaredCompatibility)}',
+          ),
+        Text('SHA-256: ${inspection.sha256}'),
+        Text('Signature: ${inspection.signatureStatus}'),
+        for (final note in inspection.notes) Text(note),
+      ],
+    );
+  }
+
+  void _changeFlashMode(bool full) {
+    if (_loading || _historyLoading || _recoveryRequired) return;
+    setState(() {
+      _fullFlash = full;
+      _completedStages = 0;
+      _flashGateStarted = false;
+      _flashStagesStarted = false;
+      _flashWorkflowFailed = false;
+      _totalStages = full ? 16 : 10;
+      _error = null;
+      _operationReady = false;
+      _operationEvidence = null;
+      _preflightReportPath = null;
+      _recoveryReady = false;
+      _recoveryPlanPath = null;
+      _recoveryEvidence = null;
+      _recoveryPreflightReportPath = null;
+      _lastOperationKind = null;
+      _operationStatus = null;
+    });
+  }
+
+  Widget _flashTextGroup(List<Widget> children) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (final child in children)
+        Padding(padding: const EdgeInsets.only(bottom: 12), child: child),
+    ],
+  );
+
+  Widget _buildFlashPage(BuildContext context) {
+    final inspection = _mapInspection;
+    final validBin =
+        widget.engine == 'N20' &&
+        inspection?.kind == 'opaque_artifact' &&
+        inspection?.partialPreview != null;
+    final canPrepare =
+        !_loading &&
+        !_historyLoading &&
+        _historyError == null &&
+        !_recoveryRequired &&
+        widget.realVehicle &&
+        widget.software != null &&
+        validBin;
+    final phase = _operationRunning
+        ? (_operationExecuting
+              ? FlashPagePhase.writing
+              : FlashPagePhase.preparing)
+        : _recoveryRequired
+        ? FlashPagePhase.review
+        : _operationReady
+        ? FlashPagePhase.ready
+        : _error != null
+        ? FlashPagePhase.error
+        : _lastOperationKind == 'prepared_without_write_approval'
+        ? FlashPagePhase.prepared
+        : _lastOperationKind == 'blocked'
+        ? FlashPagePhase.blocked
+        : _lastOperationKind == 'complete'
+        ? FlashPagePhase.completed
+        : FlashPagePhase.selected;
+    final reason = !widget.realVehicle
+        ? 'Connect the real DME to prepare this file.'
+        : widget.engine != 'N20'
+        ? 'No programming profile is registered for this DME.'
+        : !validBin
+        ? 'Choose the original N20 BIN to prepare flashing.'
+        : widget.software == null
+        ? 'DME software identity is unavailable. Reconnect before preparing.'
+        : _historyLoading
+        ? 'Checking saved operations…'
+        : null;
+    final details = _flashTextGroup([
+      if (inspection != null) ...[
+        FileDmeComparison(
+          preview: inspection.partialPreview,
+          fileBootloader: _binMetadata?['bootloader'] as String?,
+          software: widget.software,
+          calibration: widget.calibration,
+          hardware: widget.hardware,
+          bootloader: widget.bootloader,
+          sessionId: widget.sessionId,
+          capturedAt: _identityCapturedAt,
+          realVehicle: widget.realVehicle,
+        ),
+        const Divider(),
+        if (inspection.partialPreview case final preview?) ...[
+          const Text(
+            'Calibration regions',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SelectableText(
+            'Main: 523,264 bytes · 0x180000–0x1FFBFF\nTail: 768 bytes · 0x1FFD00–0x1FFFFF',
+          ),
+          Text(
+            'Skipped gap: ${preview.gapIsZero ? 'all zero' : 'nonzero; unsupported reference layout'}',
+          ),
+          SelectableText(
+            'Main SHA-256: ${preview.mainHash}\nTail SHA-256: ${preview.tailHash}',
+          ),
+        ],
+        if (_fullFlash)
+          const Text(
+            'Software + calibration: six regions, 3,931,392 bytes. Startup memory and skipped gaps are excluded.',
+          ),
+        if (inspection.filenameVin != null)
+          Text('Filename VIN: ${inspection.filenameVin} (unverified claim)'),
+        if (inspection.binaryMarker != null)
+          Text('Header marker: ${inspection.binaryMarker} (hint only)'),
+        if (inspection.comparedSoftwareToken != null)
+          Text(_embeddedSoftwareIdSummary(inspection)),
+        Text(_mapFileStatus(inspection)),
+        _artifactDetails(inspection, ''),
+      ] else
+        const Text('Select a file to inspect its identity and regions.'),
+    ]);
+    final tools = _flashTextGroup([
+      const Text(
+        'BIN classification',
+        style: TextStyle(fontWeight: FontWeight.w600),
+      ),
+      const Text(
+        'Used for recovery-route selection. Your classification does not establish compatibility.',
+      ),
+      DropdownButton<String>(
+        key: const Key('n20-bin-stock-classification'),
+        value: _binStock == null
+            ? 'unknown'
+            : _binStock!
+            ? 'stock'
+            : 'modified',
+        isExpanded: true,
+        items: const [
+          DropdownMenuItem(value: 'unknown', child: Text('Not classified')),
+          DropdownMenuItem(
+            value: 'stock',
+            child: Text('Stock · your classification'),
+          ),
+          DropdownMenuItem(
+            value: 'modified',
+            child: Text('Modified · your classification'),
+          ),
+        ],
+        onChanged: _loading || _historyLoading || _recoveryRequired
+            ? null
+            : (value) {
+                if (value == null) return;
+                _changeFlashMode(_fullFlash);
+                setState(
+                  () =>
+                      _binStock = value == 'unknown' ? null : value == 'stock',
+                );
+              },
+      ),
+      const Divider(),
+      const Text(
+        'Programming access',
+        style: TextStyle(fontWeight: FontWeight.w600),
+      ),
+      Text(
+        _programmingAccessEvidence?['status'] == 'observed'
+            ? 'A matching prior owned connection accepted programming-session and security access. This is historical evidence; writing must establish fresh access.'
+            : _programmingAccessEvidence?['status'] == 'security_only'
+            ? 'A security response was accepted, but programming-session access was not established by that record.'
+            : 'Writing must establish programming-session and security access on its owned connection. A separate check can save an observation; it does not approve erase or transfer.',
+      ),
+      OutlinedButton.icon(
+        key: const Key('n20-check-programming-access'),
+        onPressed:
+            !_loading &&
+                !_historyLoading &&
+                !_recoveryRequired &&
+                widget.realVehicle &&
+                widget.engine == 'N20' &&
+                widget.bootloader != null
+            ? _checkProgrammingAccess
+            : null,
+        icon: const Icon(Icons.key_outlined, size: 18),
+        label: const Text('Check programming access'),
+      ),
+      if (_programmingAccessStatus != null) Text(_programmingAccessStatus!),
+      if (_programmingAccessEvidence?['directory'] case final String directory)
+        SelectableText(directory),
+      const Divider(),
+      const Text(
+        'Diagnostic and file tools',
+        style: TextStyle(fontWeight: FontWeight.w600),
+      ),
+      const Text(
+        'These actions are separate from flashing. The condition query requires confirmation.',
+      ),
+      Wrap(
+        spacing: 10,
+        runSpacing: 8,
+        children: [
+          OutlinedButton.icon(
+            key: const Key('n20-query-programming-conditions'),
+            onPressed: !_loading && !_historyLoading && widget.realVehicle
+                ? _queryProgrammingConditions
+                : null,
+            icon: const Icon(Icons.rule, size: 18),
+            label: const Text('Query conditions'),
+          ),
+          OutlinedButton.icon(
+            key: const Key('n20-import-agent-state'),
+            onPressed: !_loading && !_historyLoading && widget.realVehicle
+                ? _importAgentState
+                : null,
+            icon: const Icon(Icons.file_open_outlined, size: 18),
+            label: const Text('Import agent state'),
+          ),
+          OutlinedButton.icon(
+            key: const Key('n20-read-coding-backup'),
+            onPressed: canPrepare ? _readCodingBackup : null,
+            icon: const Icon(Icons.save_alt, size: 18),
+            label: const Text('Read coding backup'),
+          ),
+          OutlinedButton.icon(
+            onPressed:
+                !_loading &&
+                    _mapSourceFile != null &&
+                    inspection?.kind != 'bimmerscope_map_package'
+                ? _createBimmerScopePackage
+                : null,
+            icon: const Icon(Icons.inventory_2_outlined, size: 18),
+            label: const Text('Save .bmap package'),
+          ),
+        ],
+      ),
+      const Text(
+        'Agent-state import is optional legacy history for direct BIN preparation. It is not proof of physical unlock. A coding backup is not a complete ECU recovery image.',
+      ),
+      if (_conditionStatus != null) Text(_conditionStatus!),
+      if (_conditionReportPath != null) SelectableText(_conditionReportPath!),
+      if (_agentStateStatus != null) SelectableText(_agentStateStatus!),
+      if (_preparationStatus != null) Text(_preparationStatus!),
+      if (_codingBackupPath != null) SelectableText(_codingBackupPath!),
+    ]);
+    final history = _flashTextGroup([
+      TextButton.icon(
+        onPressed: !_loading && !_historyLoading ? _loadSavedOperations : null,
+        icon: const Icon(Icons.refresh, size: 18),
+        label: const Text('Refresh records'),
+      ),
+      if (_historyLoading) const LinearProgressIndicator(),
+      if (_historyError != null) Text(_historyError!),
+      if (_savedOperations.isEmpty && !_historyLoading)
+        const Text('No matching saved operations.'),
+      const Text(
+        'Loading a record does not resume writing or approve the connected ECU.',
+      ),
+      for (final entry in _savedOperations)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(entry['status'] as String? ?? 'Unknown record'),
+          subtitle: Text('${entry['detail']}\n${entry['directory']}'),
+          trailing: TextButton(
+            onPressed:
+                !_loading && !_historyLoading && entry['can_load'] == true
+                ? () => _loadSavedOperation(entry)
+                : null,
+            child: const Text('Load'),
+          ),
+        ),
+    ]);
+    final recovery = _flashTextGroup([
+      const Text(
+        'Responding-DME recovery',
+        style: TextStyle(fontWeight: FontWeight.w600),
+      ),
+      const Text(
+        'Rewrites software and calibration using this BIN and the original saved coding. Startup is excluded. This cannot establish recovery after diagnostic access is lost.',
+      ),
+      Wrap(
+        spacing: 10,
+        runSpacing: 8,
+        children: [
+          OutlinedButton.icon(
+            key: const Key('n20-prepare-recovery-plan'),
+            onPressed: !_loading && _operationEvidence != null
+                ? _prepareRecoveryPlan
+                : null,
+            icon: const Icon(Icons.restore, size: 18),
+            label: const Text('Review recovery plan'),
+          ),
+          OutlinedButton.icon(
+            key: const Key('n20-prepare-recovery-operation'),
+            onPressed:
+                !_loading && _recoveryPlanPath != null && widget.realVehicle
+                ? _prepareRecoveryOperation
+                : null,
+            icon: const Icon(Icons.fact_check_outlined, size: 18),
+            label: const Text('Check readiness'),
+          ),
+          FilledButton.icon(
+            key: const Key('n20-start-recovery-operation'),
+            onPressed: !_loading && _recoveryReady
+                ? _confirmRecoveryOperation
+                : null,
+            icon: const Icon(Icons.restore, size: 18),
+            label: const Text('Start recovery'),
+          ),
+        ],
+      ),
+      if (_recoveryReviewStatus != null) Text(_recoveryReviewStatus!),
+      if (_recoveryPlanPath != null) SelectableText(_recoveryPlanPath!),
+      if (_recoveryPreflightReportPath != null)
+        SelectableText(_recoveryPreflightReportPath!),
+      if (_recoveryEvidence != null) SelectableText(_recoveryEvidence!),
+      const Text(
+        'A reviewed recovery profile is required. A coding backup is not a full recovery image.',
+      ),
+    ]);
+    return PopScope(
+      canPop: !_loading,
+      child: Scaffold(
+        backgroundColor: AppPalette.background(widget.isDark),
+        appBar: AppBar(
+          title: const Text('Flash a map'),
+          actions: [
+            IconButton(
+              tooltip: 'Flash diagnostics',
+              onPressed: _loading || _historyLoading ? null : _openFlashDiagnostics,
+              icon: const Icon(Icons.bug_report_outlined),
+            ),
+          ],
+        ),
+        body: FlashMapWorkspace(
+          isDark: widget.isDark,
+          vehicle: widget.engine ?? 'DME',
+          vin: widget.vin,
+          connection: widget.realVehicle
+              ? widget.connectionLabel
+              : 'Real DME not connected',
+          fullFlash: _fullFlash,
+          recovering: _operationRecovery,
+          busy: _loading || _historyLoading,
+          phase: phase,
+          blockReason: _operationBlockReason,
+          fileName: inspection?.fileName,
+          fileSize: inspection == null
+              ? null
+              : _formatMapFileSize(inspection.size),
+          onChoose: _loading ? null : _chooseMap,
+          onPrepare: canPrepare ? _prepareFlashOperation : null,
+          programmingAccessAccepted: _programmingAccessStatus != null &&
+              phase == FlashPagePhase.prepared,
+          onCheckProgrammingAccess: canPrepare && widget.bootloader != null
+              ? _checkProgrammingAccess
+              : null,
+          onWrite:
+              !_loading &&
+                  !_historyLoading &&
+                  _historyError == null &&
+                  validBin &&
+                  !_recoveryRequired &&
+                  _operationReady
+              ? _confirmFlashOperation
+              : null,
+          onModeChanged: _loading || _historyLoading || _recoveryRequired
+              ? null
+              : _changeFlashMode,
+          unavailableReason: reason,
+          attention: _historyError == null
+              ? null
+              : 'Saved operations could not be checked. Review the history details before proceeding.',
+          progress: _operationExecuting && _completedStages > 0
+              ? _completedStages / _totalStages
+              : null,
+          progressLabel: _operationExecuting
+              ? '$_completedStages of $_totalStages stages completed'
+              : null,
+          workflow: _flashWorkflow(phase),
+          checkDetails: _operationStatus == null && _error == null
+              ? null
+              : _flashTextGroup([
+                  if (_error != null) SelectableText(_error!),
+                  if (_operationStatus != null && _operationStatus != _error)
+                    SelectableText(_operationStatus!),
+                  if (_preflightReportPath != null)
+                    SelectableText('Preflight report\n$_preflightReportPath'),
+                  if (_operationEvidence != null)
+                    SelectableText('Operation record\n$_operationEvidence'),
+                ]),
+          details: details,
+          tools: tools,
+          history: history,
+          recovery: recovery,
+          historySummary: _historyLoading
+              ? 'Checking records…'
+              : '${_savedOperations.length} saved records · local evidence only',
+        ),
+      ),
+    );
+  }
+
+  Widget _flashWorkflow(FlashPagePhase phase) {
+    final rewrite = _totalStages == 16;
+    final steps = [
+      'Receive and check BIN and DME',
+      'Check power and programming conditions',
+      'Confirm live DME identity',
+      'Prepare session, request access and write fingerprint',
+      if (rewrite) ...[
+        'Erase software',
+        'Transfer first software region',
+        'Transfer first software tail',
+        'Transfer second software region',
+        'Transfer second software tail',
+        'Verify software',
+      ],
+      'Erase calibration',
+      'Transfer calibration',
+      'Transfer calibration tail',
+      'Verify calibration',
+      'Check programming dependencies',
+      'Write VIN',
+      'Restore diagnostic and energy modes',
+      'Restore coding and verify readback',
+    ];
+    final passed = _flashStagesStarted
+        ? 2 + _completedStages
+        : _flashGateStarted ||
+              phase == FlashPagePhase.prepared ||
+              phase == FlashPagePhase.ready
+        ? 1
+        : 0;
+    final failure = _error ?? _operationStatus;
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Flash workflow', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          for (final (index, step) in steps.indexed)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                index < passed
+                    ? Icons.check_circle_outline
+                    : index == passed && _flashWorkflowFailed
+                    ? Icons.cancel_outlined
+                    : index == passed && _operationRunning
+                    ? Icons.timelapse
+                    : Icons.radio_button_unchecked,
+                color: index < passed
+                    ? AppPalette.green
+                    : index == passed && _flashWorkflowFailed
+                    ? Theme.of(context).colorScheme.error
+                    : null,
+              ),
+              title: Text(step),
+              subtitle: Text(
+                index < passed
+                    ? 'Passed'
+                    : index == passed && _flashWorkflowFailed
+                    ? failure ?? 'Failed'
+                    : index == passed && _operationRunning
+                    ? 'In progress'
+                    : 'Pending',
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _openFlashDiagnostics() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: const Text('Flash diagnostics')),
+          backgroundColor: AppPalette.background(widget.isDark),
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 960),
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Text(
+                    'Current operation',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  if (_error case final error?) SelectableText(error),
+                  SelectableText(
+                    _operationStatus ?? 'No flash result in this session.',
+                  ),
+                  for (final (label, path) in [
+                    ('Preflight report', _preflightReportPath),
+                    ('Operation folder', _operationEvidence),
+                    ('Programming conditions', _conditionReportPath),
+                    ('Recovery preflight report', _recoveryPreflightReportPath),
+                    ('Recovery operation folder', _recoveryEvidence),
+                  ])
+                    if (path != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: SelectableText('$label\n$path'),
+                      ),
+                  const Divider(height: 32),
+                  Text(
+                    'Saved operations',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  if (_historyLoading) const LinearProgressIndicator(),
+                  if (_historyError case final error?) SelectableText(error),
+                  if (_savedOperations.isEmpty && !_historyLoading)
+                    const Text('No matching saved operations.'),
+                  for (final entry in _savedOperations)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(entry['status'] as String? ?? 'Unknown record'),
+                      subtitle: SelectableText(
+                        '${entry['detail']}\n${entry['directory']}',
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.action == _TuneActionKind.installMap) {
+      return _buildFlashPage(context);
+    }
+    final isN20 = widget.engine == 'N20';
+    final isInstall = widget.action == _TuneActionKind.installMap;
+    final muted = AppPalette.secondary(widget.isDark);
+    final title = isInstall ? 'Choose a map file' : 'Stock restore review';
+    return PopScope(
+      canPop: !_loading,
+      child: Scaffold(
+        backgroundColor: AppPalette.background(widget.isDark),
+        appBar: AppBar(title: Text(widget.title)),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: AppPalette.surface(widget.isDark),
+                borderRadius: BorderRadius.circular(appCardRadius),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...[
+                    Row(
+                      children: [
+                        Icon(widget.icon, color: AppPalette.blue),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Target: ${widget.engine ?? 'Unidentified ECU'} · VIN ${widget.vin}',
+                    ),
+                    Text(
+                      'DME identity: ${widget.identity ?? 'Not identified'}',
+                    ),
+                    Text(
+                      'DME hardware: ${widget.hardware ?? 'Not identified'}',
+                    ),
+                    Text(
+                      'DME software: ${widget.software ?? 'Not identified'}',
+                    ),
+                    Text(
+                      'Bootloader: ${widget.bootloader ?? 'Not identified'}',
+                    ),
+                    Text(
+                      'Calibration: ${widget.calibration ?? 'Not identified'}',
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      isN20
+                          ? 'Saved stock artifacts can be reviewed, but the N20 captures are partial probes and are not complete recovery images.'
+                          : 'No validated programming and recovery backend is registered for this ECU.',
+                      style: TextStyle(color: muted, height: 1.4),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            ...[
+              FilledButton.icon(
+                onPressed: _loading ? null : _importStockFile,
+                icon: const Icon(Icons.upload_file_outlined),
+                label: const Text('Import stock artifact for review'),
+              ),
+              const SizedBox(height: 10),
+              if (_stockFiles.isEmpty && !_loading)
+                const _ReviewCard(
+                  title: 'Saved stock artifacts',
+                  child: Text('No stock artifacts saved for this VIN.'),
+                ),
+              for (final backup in _stockFiles)
+                Card(
+                  child: RadioListTile<String>(
+                    value: backup.file.path,
+                    groupValue: _selectedStockFile?.path,
+                    title: Text(backup.fileName),
+                    subtitle: const Text(
+                      'Saved artifact · compatibility unverified',
+                    ),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      final file = backup.file;
+                      setState(() {
+                        _selectedStockFile = file;
+                        _stockInspection = null;
+                      });
+                      _inspectStock(file);
+                    },
+                  ),
+                ),
+              _ReviewCard(
+                title: 'Selected stock artifact',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _artifactDetails(
+                      _stockInspection,
+                      'Select or import an artifact to inspect.',
+                    ),
+                    if (_stockMetadata != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Source: ${_stockMetadata!['source'] ?? 'Not recorded'}',
+                      ),
+                      Text(
+                        'Read status: ${_stockMetadata!['readStatus'] ?? _stockMetadata!['compatibility'] ?? 'Not recorded'}',
+                      ),
+                      if (_stockMetadata!.containsKey('fullCalibrationRead'))
+                        Text(
+                          'Full calibration read: ${_stockMetadata!['fullCalibrationRead'] == true ? 'declared yes' : 'no'}',
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+              const _ReviewCard(
+                title: 'Restore eligibility',
+                child: Text(
+                  'Blocked. A saved file is not automatically a complete ECU backup or recovery image. Exact DME compatibility, full-image provenance, integrity rules, and a tested recovery procedure are required.',
+                ),
+              ),
+            ],
+            if (_loading) const Center(child: CircularProgressIndicator()),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            const SizedBox(height: 10),
+            if (!isInstall)
+              const _ReviewCard(
+                title: 'Programming status',
+                child: Text(
+                  'No ECU write or flash command is available from this page.',
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _vehicleContextLabel(String key) => switch (key) {
+    'vin' => 'VIN',
+    'engine' => 'Engine',
+    'dme_identity' => 'DME identity',
+    'hardware' => 'DME hardware',
+    'software' => 'DME software',
+    'bootloader' => 'Bootloader',
+    'calibration' => 'Calibration',
+    _ => key,
+  };
+
+  String _formatMapFileSize(int size) {
+    if (size >= 1024 * 1024)
+      return '${(size / (1024 * 1024)).toStringAsFixed(1)} MiB';
+    if (size >= 1024) return '${(size / 1024).toStringAsFixed(1)} KiB';
+    return '$size bytes';
+  }
+
+  String _embeddedSoftwareIdSummary(CalibrationArtifactInspection inspection) {
+    final rawOffset = inspection.rawSoftwareIdOffset;
+    final asciiOffset = inspection.asciiSoftwareIdOffset;
+    if (rawOffset == null && asciiOffset == null) {
+      return 'Live software ID bytes not found in file (not a compatibility verdict)';
+    }
+    final locations = <String>[
+      if (rawOffset != null) 'bytes at ${_formatFileOffset(rawOffset)}',
+      if (asciiOffset != null) 'text at ${_formatFileOffset(asciiOffset)}',
+    ];
+    return 'Live software ID found in file: ${locations.join(', ')}';
+  }
+
+  String _formatFileOffset(int offset) =>
+      '0x${offset.toRadixString(16).toUpperCase().padLeft(8, '0')}';
+
+  String _mapFileStatus(CalibrationArtifactInspection inspection) =>
+      switch (inspection.kind) {
+        'bimmerscope_map_package' => 'BimmerScope package integrity: passed',
+        'invalid_bimmerscope_map_package' =>
+          'BimmerScope package integrity: failed',
+        _ => 'File opened for review',
+      };
+}
+
+class _ReviewCard extends StatelessWidget {
+  const _ReviewCard({required this.title, required this.child});
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          child,
+        ],
+      ),
+    ),
+  );
 }

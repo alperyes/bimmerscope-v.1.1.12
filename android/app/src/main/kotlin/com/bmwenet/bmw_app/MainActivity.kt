@@ -93,9 +93,9 @@ class MainActivity : FlutterActivity() {
                     override fun onAvailable(network: Network) {
                         if (completed) return
                         completed = true
-                        connectivity.bindProcessToNetwork(network)
+                        val bound = connectivity.bindProcessToNetwork(network)
                         connectivity.unregisterNetworkCallback(this)
-                        result.success(true)
+                        result.success(bound)
                     }
                     override fun onUnavailable() {
                         if (completed) return

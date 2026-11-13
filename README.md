@@ -1,25 +1,25 @@
 # BimmerScope
 
-Experimental Flutter application with a Rust protocol core for BMW F-series vehicles over ENET/HSFZ. The current workspace is **1.1.12-experimental.1+100**. Version and APK naming rules are in [VERSIONING.md](VERSIONING.md).
+Experimental Flutter application with a Rust protocol core for BMW F-series vehicles over ENET/HSFZ. The current workspace is **1.1.12-experimental.1+111**. Version and APK naming rules are in [VERSIONING.md](VERSIONING.md).
 
 ## Current scope
 
 - Live vehicle connection, monitoring, logging, and diagnostics.
-- Tune workspace for imported stock files, read-only review, and tuner-request preparation.
+- Tune workspace for stock-artifact review and BimmerScope-owned `.bmap` map-package creation.
 - DME identity reads, guarded DME reset, and Read DME 2 memory capture with saved BIN sharing and deletion.
 - N20 bench Read DME 2 capture range: `0x80180000`–`0x801FFBFF` (511 KiB). This is a partial memory region, not a complete ECU image.
 - Core and Tune Android flavors share the same Flutter and Rust codebase.
 
 Read DME 2 and the reset flow are experimental. Bench captures do not establish compatibility with the stock 2014 F82 M4. The F82 DME software and unlock state remain unverified. The current identity and memory-read features have not been validated on that car.
 
-The Tune workspace provides preparation and review workflows. BimmerScope does not currently expose a validated vehicle flashing or calibration-writing workflow. The DME reset is a distinct, confirmed action and may reset other ECUs when sent to the broadcast destination; review the in-app warning before use.
+The Tune workspace can package an unchanged calibration artifact in the BimmerScope `.bmap` format with a SHA-256 integrity record and captured DME identity context. This does not establish compatibility. BimmerScope does not currently expose a validated vehicle flashing or calibration-writing workflow. The DME reset is a distinct, confirmed action and may reset other ECUs when sent to the broadcast destination; review the in-app warning before use.
 
 ## Build and test
 
 Prerequisites: Flutter 3.38 or newer, Rust, and the relevant platform toolchain.
 
-The v1.1.12 Tune Windows x64 release bundle is checked in at
-[`dist/windows-x64/BimmerScope-v1.1.12-experimental.1+100-windows-x64`](dist/windows-x64/BimmerScope-v1.1.12-experimental.1%2B100-windows-x64).
+The latest v1.1.12 Tune Windows x64 release bundle is available at
+[`dist/windows-x64/BimmerScope-v1.1.12-experimental.1+111-tune-identity-comparison-windows-x64`](dist/windows-x64/BimmerScope-v1.1.12-experimental.1%2B111-tune-identity-comparison-windows-x64).
 Launch `BimmerScope.exe` from that folder; keep the adjacent DLLs and `data/`
 directory with it. The bundle was produced with:
 
@@ -27,7 +27,7 @@ directory with it. The bundle was produced with:
 flutter build windows --release --dart-define=BIMMERSCOPE_EDITION=tune
 ```
 
-The executable SHA-256 is `098A91156880607A8560768A1D3786EBF06BD4B3CA5E458258A0D3B00033DEB9`.
+The executable SHA-256 is `2FF47FFAC970721D80D168D6D66F1B1F86B3BA648CCB4CDFE9BDEE44AE25C787`.
 
 This bundle includes the reported FEM and gateway DTC definitions: CD1412,
 D917A0, 03001E, 03009E, 8040A0, D9040A, D91C86, D91C89, D9201E, and CD040A.

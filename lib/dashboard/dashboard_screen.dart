@@ -1038,11 +1038,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
     if (!demo && !simulator) {
       _startAndroidVehicleSessionService();
-      unawaited(
-        _androidNetworkChannel
+      if (Platform.isAndroid) {
+        final bound = await _androidNetworkChannel
             .invokeMethod<bool>('bindEthernet')
-            .catchError((_) => false),
-      );
+            .catchError((_) => false);
+        if (!mounted || generation != _sessionGeneration) return;
+        logUserAction('Android Ethernet binding: $bound');
+        // Tethered Ethernet may have a usable local route without an Android
+        // client Network. Continue discovery even when binding is unavailable.
+      }
       unawaited(_checkAndroidEthernet());
     }
     _syncLiveSensorSelection();

@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1239770903;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1367907961;
 
 // Section: executor
 
@@ -672,6 +672,45 @@ fn wire__crate__api__vehicle__experimental_exhaust_flap_set_position_impl(
         },
     )
 }
+fn wire__crate__api__vehicle__import_n20_agent_state_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "import_n20_agent_state",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_expected_vin = <String>::sse_decode(&mut deserializer);
+            let api_source_path = <String>::sse_decode(&mut deserializer);
+            let api_confirmed = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::import_n20_agent_state(
+                        api_expected_vin,
+                        api_source_path,
+                        api_confirmed,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__vehicle__init_app_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -706,6 +745,77 @@ fn wire__crate__api__vehicle__init_app_impl(
         },
     )
 }
+fn wire__crate__api__vehicle__initialize_vehicle_safety_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "initialize_vehicle_safety",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_root_directory = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok =
+                        crate::api::vehicle::initialize_vehicle_safety(api_root_directory)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__vehicle__inspect_n20_bin_metadata_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "inspect_n20_bin_metadata",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_bin_path = <String>::sse_decode(&mut deserializer);
+            let api_bin_sha256 = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::inspect_n20_bin_metadata(
+                        api_bin_path,
+                        api_bin_sha256,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__vehicle__ista_s55_read_profile_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -732,6 +842,313 @@ fn wire__crate__api__vehicle__ista_s55_read_profile_impl(
                 let output_ok = Result::<_, ()>::Ok(crate::api::vehicle::ista_s55_read_profile())?;
                 Ok(output_ok)
             })())
+        },
+    )
+}
+fn wire__crate__api__vehicle__list_n20_saved_operations_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "list_n20_saved_operations",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_root_directory = <String>::sse_decode(&mut deserializer);
+            let api_expected_vin = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::list_n20_saved_operations(
+                        api_root_directory,
+                        api_expected_vin,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__vehicle__prepare_n20_flash_operation_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "prepare_n20_flash_operation",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_expected_vin = <String>::sse_decode(&mut deserializer);
+            let api_expected_software = <String>::sse_decode(&mut deserializer);
+            let api_bin_path = <String>::sse_decode(&mut deserializer);
+            let api_bin_sha256 = <String>::sse_decode(&mut deserializer);
+            let api_output_directory = <String>::sse_decode(&mut deserializer);
+            let api_bin_stock = <Option<bool>>::sse_decode(&mut deserializer);
+            let api_sink = <StreamSink<
+                crate::api::vehicle::N20OperationEvent,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::prepare_n20_flash_operation(
+                        api_expected_vin,
+                        api_expected_software,
+                        api_bin_path,
+                        api_bin_sha256,
+                        api_output_directory,
+                        api_bin_stock,
+                        api_sink,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__vehicle__prepare_n20_full_flash_operation_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "prepare_n20_full_flash_operation",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_expected_vin = <String>::sse_decode(&mut deserializer);
+            let api_expected_software = <String>::sse_decode(&mut deserializer);
+            let api_bin_path = <String>::sse_decode(&mut deserializer);
+            let api_bin_sha256 = <String>::sse_decode(&mut deserializer);
+            let api_output_directory = <String>::sse_decode(&mut deserializer);
+            let api_bin_stock = <Option<bool>>::sse_decode(&mut deserializer);
+            let api_sink = <StreamSink<
+                crate::api::vehicle::N20OperationEvent,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::prepare_n20_full_flash_operation(
+                        api_expected_vin,
+                        api_expected_software,
+                        api_bin_path,
+                        api_bin_sha256,
+                        api_output_directory,
+                        api_bin_stock,
+                        api_sink,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__vehicle__prepare_n20_recovery_operation_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "prepare_n20_recovery_operation",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_expected_vin = <String>::sse_decode(&mut deserializer);
+            let api_bin_sha256 = <String>::sse_decode(&mut deserializer);
+            let api_plan_path = <String>::sse_decode(&mut deserializer);
+            let api_output_directory = <String>::sse_decode(&mut deserializer);
+            let api_sink = <StreamSink<
+                crate::api::vehicle::N20OperationEvent,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::prepare_n20_recovery_operation(
+                        api_expected_vin,
+                        api_bin_sha256,
+                        api_plan_path,
+                        api_output_directory,
+                        api_sink,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__vehicle__prepare_n20_recovery_plan_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "prepare_n20_recovery_plan",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_expected_vin = <String>::sse_decode(&mut deserializer);
+            let api_bin_path = <String>::sse_decode(&mut deserializer);
+            let api_bin_sha256 = <String>::sse_decode(&mut deserializer);
+            let api_original_operation_directory = <String>::sse_decode(&mut deserializer);
+            let api_output_directory = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::prepare_n20_recovery_plan(
+                        api_expected_vin,
+                        api_bin_path,
+                        api_bin_sha256,
+                        api_original_operation_directory,
+                        api_output_directory,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__vehicle__provide_n20_operation_key_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "provide_n20_operation_key",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_request_id = <String>::sse_decode(&mut deserializer);
+            let api_key = <Vec<u8>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok =
+                        crate::api::vehicle::provide_n20_operation_key(api_request_id, api_key)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__vehicle__query_n20_programming_preconditions_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "query_n20_programming_preconditions",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_expected_vin = <String>::sse_decode(&mut deserializer);
+            let api_expected_software = <String>::sse_decode(&mut deserializer);
+            let api_output_directory = <String>::sse_decode(&mut deserializer);
+            let api_confirmed = <bool>::sse_decode(&mut deserializer);
+            let api_sink = <StreamSink<
+                crate::api::vehicle::N20OperationEvent,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::query_n20_programming_preconditions(
+                        api_expected_vin,
+                        api_expected_software,
+                        api_output_directory,
+                        api_confirmed,
+                        api_sink,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
         },
     )
 }
@@ -838,6 +1255,84 @@ fn wire__crate__api__vehicle__read_ista_s55_calibration_impl(
         },
     )
 }
+fn wire__crate__api__vehicle__read_n20_flash_coding_backup_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "read_n20_flash_coding_backup",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_expected_vin = <String>::sse_decode(&mut deserializer);
+            let api_expected_software = <String>::sse_decode(&mut deserializer);
+            let api_bin_path = <String>::sse_decode(&mut deserializer);
+            let api_bin_sha256 = <String>::sse_decode(&mut deserializer);
+            let api_output_directory = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::read_n20_flash_coding_backup(
+                        api_expected_vin,
+                        api_expected_software,
+                        api_bin_path,
+                        api_bin_sha256,
+                        api_output_directory,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__vehicle__reject_n20_operation_key_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "reject_n20_operation_key",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_request_id = <String>::sse_decode(&mut deserializer);
+            let api_reason = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok =
+                        crate::api::vehicle::reject_n20_operation_key(api_request_id, api_reason)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__vehicle__reset_engine_dme_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -865,6 +1360,58 @@ fn wire__crate__api__vehicle__reset_engine_dme_impl(
             move |context| {
                 transform_result_sse::<_, String>((move || {
                     let output_ok = crate::api::vehicle::reset_engine_dme(api_expected_vin)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__vehicle__run_owned_dme_preparation_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "run_owned_dme_preparation",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_expected_vin = <String>::sse_decode(&mut deserializer);
+            let api_expected_bootloader = <String>::sse_decode(&mut deserializer);
+            let api_requests = <Vec<Vec<u8>>>::sse_decode(&mut deserializer);
+            let api_security_prefix = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_post_key_requests = <Vec<Vec<u8>>>::sse_decode(&mut deserializer);
+            let api_output_directory = <String>::sse_decode(&mut deserializer);
+            let api_confirmed = <bool>::sse_decode(&mut deserializer);
+            let api_sink = <StreamSink<
+                crate::api::vehicle::N20OperationEvent,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::run_owned_dme_preparation(
+                        api_expected_vin,
+                        api_expected_bootloader,
+                        api_requests,
+                        api_security_prefix,
+                        api_post_key_requests,
+                        api_output_directory,
+                        api_confirmed,
+                        api_sink,
+                    )?;
                     Ok(output_ok)
                 })())
             }
@@ -1077,6 +1624,158 @@ fn wire__crate__api__vehicle__start_monitoring_impl(
         },
     )
 }
+fn wire__crate__api__vehicle__start_n20_flash_operation_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "start_n20_flash_operation",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_expected_vin = <String>::sse_decode(&mut deserializer);
+            let api_expected_software = <String>::sse_decode(&mut deserializer);
+            let api_bin_path = <String>::sse_decode(&mut deserializer);
+            let api_bin_sha256 = <String>::sse_decode(&mut deserializer);
+            let api_output_directory = <String>::sse_decode(&mut deserializer);
+            let api_confirmed = <bool>::sse_decode(&mut deserializer);
+            let api_bin_stock = <Option<bool>>::sse_decode(&mut deserializer);
+            let api_sink = <StreamSink<
+                crate::api::vehicle::N20OperationEvent,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::start_n20_flash_operation(
+                        api_expected_vin,
+                        api_expected_software,
+                        api_bin_path,
+                        api_bin_sha256,
+                        api_output_directory,
+                        api_confirmed,
+                        api_bin_stock,
+                        api_sink,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__vehicle__start_n20_full_flash_operation_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "start_n20_full_flash_operation",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_expected_vin = <String>::sse_decode(&mut deserializer);
+            let api_expected_software = <String>::sse_decode(&mut deserializer);
+            let api_bin_path = <String>::sse_decode(&mut deserializer);
+            let api_bin_sha256 = <String>::sse_decode(&mut deserializer);
+            let api_output_directory = <String>::sse_decode(&mut deserializer);
+            let api_confirmed = <bool>::sse_decode(&mut deserializer);
+            let api_bin_stock = <Option<bool>>::sse_decode(&mut deserializer);
+            let api_sink = <StreamSink<
+                crate::api::vehicle::N20OperationEvent,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::start_n20_full_flash_operation(
+                        api_expected_vin,
+                        api_expected_software,
+                        api_bin_path,
+                        api_bin_sha256,
+                        api_output_directory,
+                        api_confirmed,
+                        api_bin_stock,
+                        api_sink,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__vehicle__start_n20_recovery_operation_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "start_n20_recovery_operation",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_expected_vin = <String>::sse_decode(&mut deserializer);
+            let api_bin_sha256 = <String>::sse_decode(&mut deserializer);
+            let api_plan_path = <String>::sse_decode(&mut deserializer);
+            let api_output_directory = <String>::sse_decode(&mut deserializer);
+            let api_confirmed = <bool>::sse_decode(&mut deserializer);
+            let api_sink = <StreamSink<
+                crate::api::vehicle::N20OperationEvent,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::vehicle::start_n20_recovery_operation(
+                        api_expected_vin,
+                        api_bin_sha256,
+                        api_plan_path,
+                        api_output_directory,
+                        api_confirmed,
+                        api_sink,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__vehicle__start_vehicle_session_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1250,6 +1949,19 @@ impl SseDecode for flutter_rust_bridge::for_generated::anyhow::Error {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <String>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::anyhow::anyhow!("{}", inner);
+    }
+}
+
+impl SseDecode
+    for StreamSink<
+        crate::api::vehicle::N20OperationEvent,
+        flutter_rust_bridge::for_generated::SseCodec,
+    >
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <String>::sse_decode(deserializer);
+        return StreamSink::deserialize(inner);
     }
 }
 
@@ -1619,6 +2331,18 @@ impl SseDecode for Vec<crate::api::vehicle::DtcStatusDefinition> {
     }
 }
 
+impl SseDecode for Vec<Vec<u8>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<Vec<u8>>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1659,6 +2383,28 @@ impl SseDecode for Vec<crate::api::vehicle::VehicleProfile> {
     }
 }
 
+impl SseDecode for crate::api::vehicle::N20OperationEvent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_kind = <String>::sse_decode(deserializer);
+        let mut var_message = <String>::sse_decode(deserializer);
+        let mut var_requestId = <String>::sse_decode(deserializer);
+        let mut var_bootloader = <String>::sse_decode(deserializer);
+        let mut var_seed = <Vec<u8>>::sse_decode(deserializer);
+        let mut var_completedStages = <u32>::sse_decode(deserializer);
+        let mut var_evidencePath = <String>::sse_decode(deserializer);
+        return crate::api::vehicle::N20OperationEvent {
+            kind: var_kind,
+            message: var_message,
+            request_id: var_requestId,
+            bootloader: var_bootloader,
+            seed: var_seed,
+            completed_stages: var_completedStages,
+            evidence_path: var_evidencePath,
+        };
+    }
+}
+
 impl SseDecode for crate::api::vehicle::N20UnlockReferenceCheck {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1680,6 +2426,17 @@ impl SseDecode for Option<String> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<String>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<bool> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<bool>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -1892,80 +2649,176 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        1 => wire__crate__api__vehicle__bmw_routine_0205_values_default_impl(
+        2 => wire__crate__api__vehicle__bmw_routine_0205_values_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        4 => wire__crate__api__vehicle__check_n20_bench_unlock_reference_impl(
+        5 => wire__crate__api__vehicle__check_n20_bench_unlock_reference_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        5 => wire__crate__api__vehicle__clear_engine_diagnostics_impl(
+        6 => wire__crate__api__vehicle__clear_engine_diagnostics_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        17 => wire__crate__api__vehicle__ecu_fingerprint_values_default_impl(
+        18 => wire__crate__api__vehicle__ecu_fingerprint_values_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        19 => wire__crate__api__vehicle__experimental_exhaust_flap_service_test_impl(
+        20 => wire__crate__api__vehicle__experimental_exhaust_flap_service_test_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        20 => wire__crate__api__vehicle__experimental_exhaust_flap_set_position_impl(
+        21 => wire__crate__api__vehicle__experimental_exhaust_flap_set_position_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__vehicle__init_app_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__vehicle__read_bm3_s55_calibration_impl(
+        22 => wire__crate__api__vehicle__import_n20_agent_state_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__vehicle__read_dme_memory_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__vehicle__read_ista_s55_calibration_impl(
+        23 => wire__crate__api__vehicle__init_app_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__vehicle__initialize_vehicle_safety_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__vehicle__reset_engine_dme_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__vehicle__scan_engine_diagnostics_impl(
+        25 => wire__crate__api__vehicle__inspect_n20_bin_metadata_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__vehicle__send_manual_diagnostic_message_impl(
+        27 => wire__crate__api__vehicle__list_n20_saved_operations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__vehicle__start_auto_vehicle_session_impl(
+        28 => wire__crate__api__vehicle__prepare_n20_flash_operation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => wire__crate__api__vehicle__start_demo_session_impl(port, ptr, rust_vec_len, data_len),
-        33 => {
+        29 => wire__crate__api__vehicle__prepare_n20_full_flash_operation_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        30 => wire__crate__api__vehicle__prepare_n20_recovery_operation_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        31 => wire__crate__api__vehicle__prepare_n20_recovery_plan_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        32 => wire__crate__api__vehicle__provide_n20_operation_key_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        33 => wire__crate__api__vehicle__query_n20_programming_preconditions_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        34 => wire__crate__api__vehicle__read_bm3_s55_calibration_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        35 => wire__crate__api__vehicle__read_dme_memory_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__vehicle__read_ista_s55_calibration_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        37 => wire__crate__api__vehicle__read_n20_flash_coding_backup_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        38 => wire__crate__api__vehicle__reject_n20_operation_key_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        39 => wire__crate__api__vehicle__reset_engine_dme_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__vehicle__run_owned_dme_preparation_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        41 => wire__crate__api__vehicle__scan_engine_diagnostics_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        42 => wire__crate__api__vehicle__send_manual_diagnostic_message_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        44 => wire__crate__api__vehicle__start_auto_vehicle_session_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        45 => wire__crate__api__vehicle__start_demo_session_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__vehicle__start_n20_flash_operation_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        48 => wire__crate__api__vehicle__start_n20_full_flash_operation_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        49 => wire__crate__api__vehicle__start_n20_recovery_operation_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        50 => {
             wire__crate__api__vehicle__start_vehicle_session_impl(port, ptr, rust_vec_len, data_len)
         }
-        37 => {
+        54 => {
             wire__crate__api__vehicle__stop_session_and_wait_impl(port, ptr, rust_vec_len, data_len)
         }
         _ => unreachable!(),
@@ -1980,52 +2833,52 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        2 => {
+        3 => {
             wire__crate__api__vehicle__cancel_bm3_s55_calibration_impl(ptr, rust_vec_len, data_len)
         }
-        3 => {
+        4 => {
             wire__crate__api__vehicle__cancel_ista_s55_calibration_impl(ptr, rust_vec_len, data_len)
         }
-        6 => wire__crate__api__vehicle__configure_transport_diagnostics_impl(
+        7 => wire__crate__api__vehicle__configure_transport_diagnostics_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        7 => {
+        8 => {
             wire__crate__api__vehicle__confirmed_vehicle_profiles_impl(ptr, rust_vec_len, data_len)
         }
-        8 => wire__crate__api__vehicle__decode_ecu_identification_impl(ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__vehicle__decode_raw_hsfz_capture_impl(ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__vehicle__default_diagnostic_data_identifiers_impl(
+        9 => wire__crate__api__vehicle__decode_ecu_identification_impl(ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__vehicle__decode_raw_hsfz_capture_impl(ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__vehicle__default_diagnostic_data_identifiers_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        11 => {
+        12 => {
             wire__crate__api__vehicle__default_diagnostic_services_impl(ptr, rust_vec_len, data_len)
         }
-        12 => wire__crate__api__vehicle__default_dtc_response_definition_impl(
+        13 => wire__crate__api__vehicle__default_dtc_response_definition_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        13 => wire__crate__api__vehicle__default_dtc_status_definitions_impl(
+        14 => wire__crate__api__vehicle__default_dtc_status_definitions_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__vehicle__default_sensors_impl(ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__vehicle__demo_diagnostics_impl(ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__vehicle__dme_capability_preflight_impl(ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__vehicle__empty_ecu_fingerprint_impl(ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__vehicle__ista_s55_read_profile_impl(ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__vehicle__set_live_sensor_ids_impl(ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__vehicle__start_monitoring_impl(ptr, rust_vec_len, data_len),
-        34 => {
+        15 => wire__crate__api__vehicle__default_sensors_impl(ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__vehicle__demo_diagnostics_impl(ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__vehicle__dme_capability_preflight_impl(ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__vehicle__empty_ecu_fingerprint_impl(ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__vehicle__ista_s55_read_profile_impl(ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__vehicle__set_live_sensor_ids_impl(ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__vehicle__start_monitoring_impl(ptr, rust_vec_len, data_len),
+        51 => {
             wire__crate__api__vehicle__stop_exhaust_flap_session_impl(ptr, rust_vec_len, data_len)
         }
-        35 => wire__crate__api__vehicle__stop_monitoring_impl(ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__vehicle__stop_session_impl(ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__vehicle__stop_monitoring_impl(ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__vehicle__stop_session_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2340,6 +3193,32 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::vehicle::IstaDmeReadProfile>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::vehicle::N20OperationEvent {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.kind.into_into_dart().into_dart(),
+            self.message.into_into_dart().into_dart(),
+            self.request_id.into_into_dart().into_dart(),
+            self.bootloader.into_into_dart().into_dart(),
+            self.seed.into_into_dart().into_dart(),
+            self.completed_stages.into_into_dart().into_dart(),
+            self.evidence_path.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::vehicle::N20OperationEvent
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::vehicle::N20OperationEvent>
+    for crate::api::vehicle::N20OperationEvent
+{
+    fn into_into_dart(self) -> crate::api::vehicle::N20OperationEvent {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::vehicle::N20UnlockReferenceCheck {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -2491,6 +3370,18 @@ impl SseEncode for flutter_rust_bridge::for_generated::anyhow::Error {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(format!("{:?}", self), serializer);
+    }
+}
+
+impl SseEncode
+    for StreamSink<
+        crate::api::vehicle::N20OperationEvent,
+        flutter_rust_bridge::for_generated::SseCodec,
+    >
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        unimplemented!("")
     }
 }
 
@@ -2735,6 +3626,16 @@ impl SseEncode for Vec<crate::api::vehicle::DtcStatusDefinition> {
     }
 }
 
+impl SseEncode for Vec<Vec<u8>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <Vec<u8>>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2765,6 +3666,19 @@ impl SseEncode for Vec<crate::api::vehicle::VehicleProfile> {
     }
 }
 
+impl SseEncode for crate::api::vehicle::N20OperationEvent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.kind, serializer);
+        <String>::sse_encode(self.message, serializer);
+        <String>::sse_encode(self.request_id, serializer);
+        <String>::sse_encode(self.bootloader, serializer);
+        <Vec<u8>>::sse_encode(self.seed, serializer);
+        <u32>::sse_encode(self.completed_stages, serializer);
+        <String>::sse_encode(self.evidence_path, serializer);
+    }
+}
+
 impl SseEncode for crate::api::vehicle::N20UnlockReferenceCheck {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2781,6 +3695,16 @@ impl SseEncode for Option<String> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <String>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<bool> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <bool>::sse_encode(value, serializer);
         }
     }
 }

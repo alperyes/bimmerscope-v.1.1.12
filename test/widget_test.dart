@@ -253,18 +253,24 @@ void main() {
   ) async {
     SharedPreferences.setMockInitialValues({});
 
-    Widget diagnostics(String connectionLabel) => MaterialApp(
-      home: Scaffold(
-        drawer: const Drawer(),
-        body: DiagnosticsScreen(
-          isDark: true,
-          onToggleTheme: () {},
-          onShowGuide: () {},
-          connectionLabel: connectionLabel,
-          vin: '',
+    final connectionStatus = ValueNotifier<String>('Connection');
+    addTearDown(connectionStatus.dispose);
+    Widget diagnostics(String connectionLabel) {
+      connectionStatus.value = connectionLabel;
+      return MaterialApp(
+        home: Scaffold(
+          drawer: const Drawer(),
+          body: DiagnosticsScreen(
+            isDark: true,
+            onToggleTheme: () {},
+            onShowGuide: () {},
+            connectionLabel: connectionLabel,
+            connectionStatus: connectionStatus,
+            vin: '',
+          ),
         ),
-      ),
-    );
+      );
+    }
 
     await tester.pumpWidget(diagnostics('Connection'));
     await tester.pumpAndSettle();

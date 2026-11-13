@@ -12,6 +12,283 @@ use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+#[path = "../n20_flash_operation.rs"]
+mod n20_flash_operation;
+#[path = "../n20_owned_transport.rs"]
+mod n20_owned_transport;
+#[path = "../n20_access_evidence.rs"]
+mod n20_access_evidence;
+
+#[derive(Clone, Debug)]
+pub struct N20OperationEvent {
+    pub kind: String,
+    pub message: String,
+    pub request_id: String,
+    pub bootloader: String,
+    pub seed: Vec<u8>,
+    pub completed_stages: u32,
+    pub evidence_path: String,
+}
+
+fn operation_error(message: &str) -> N20OperationEvent {
+    N20OperationEvent {
+        kind: "error".into(),
+        message: message.into(),
+        request_id: String::new(),
+        bootloader: String::new(),
+        seed: vec![],
+        completed_stages: 0,
+        evidence_path: String::new(),
+    }
+}
+
+/// Offline startup interlock. Repeated calls recheck the same application
+/// storage; they cannot override or acknowledge uncertain operation evidence.
+pub fn initialize_vehicle_safety(root_directory:String)->Result<String,String> {
+    serde_json::to_string(&crate::vehicle_startup_safety::initialize(std::path::Path::new(&root_directory))?)
+        .map_err(|e|e.to_string())
+}
+
+/// Import historical agent workflow flags only; never grants programming access.
+pub fn import_n20_agent_state(expected_vin:String,source_path:String,confirmed:bool)->Result<String,String>{
+    if !confirmed{return Err("Explicit historical agent-state import confirmation is required".into());}
+    let root=crate::vehicle_startup_safety::storage_root()?;
+    serde_json::to_string(&crate::n20_agent_state::import(&root,std::path::Path::new(&source_path),&expected_vin)?)
+        .map_err(|e|e.to_string())
+}
+/// Offline BIN records; no vehicle connection and no compatibility approval.
+pub fn inspect_n20_bin_metadata(bin_path:String,bin_sha256:String)->Result<String,String>{
+    let path=std::path::Path::new(&bin_path);
+    if std::fs::metadata(path).map_err(|e|e.to_string())?.len()!=0x400000{return Err("Expected a 4 MiB N20 BIN".into());}
+    let image=crate::n20_partial::PartialImage::from_bin(std::fs::read(path).map_err(|e|e.to_string())?,&bin_sha256)?;
+    serde_json::to_string(&crate::n20_bin_metadata::inspect(image.bytes())?.report).map_err(|e|e.to_string())
+}
+
+/// DME Preparation 2 on one owned socket; cannot erase or transfer a BIN.
+pub fn run_owned_dme_preparation(
+    expected_vin:String, expected_bootloader:String, requests:Vec<Vec<u8>>,
+    security_prefix:Vec<u8>, post_key_requests:Vec<Vec<u8>>, output_directory:String,
+    confirmed:bool, sink:StreamSink<N20OperationEvent>,
+) -> Result<(),String> {
+    if !confirmed {let _=sink.add(operation_error("Explicit preparation confirmation is required"));return Ok(());}
+    n20_flash_operation::run_preparation(expected_vin,expected_bootloader,requests,security_prefix,post_key_requests,output_directory,sink)
+}
+
+pub fn prepare_n20_flash_operation(
+    expected_vin: String,
+    expected_software: String,
+    bin_path: String,
+    bin_sha256: String,
+    output_directory: String,
+    bin_stock:Option<bool>,
+    sink: StreamSink<N20OperationEvent>,
+) -> Result<(), String> {
+    n20_flash_operation::prepare(
+        expected_vin,
+        expected_software,
+        bin_path,
+        bin_sha256,
+        output_directory,
+        bin_stock,
+        sink,
+    )
+}
+
+pub fn prepare_n20_full_flash_operation(expected_vin:String,expected_software:String,bin_path:String,bin_sha256:String,output_directory:String,bin_stock:Option<bool>,sink:StreamSink<N20OperationEvent>)->Result<(),String> {
+    n20_flash_operation::begin_full(expected_vin,expected_software,bin_path,bin_sha256,output_directory,false,bin_stock,sink)
+}
+pub fn start_n20_full_flash_operation(expected_vin:String,expected_software:String,bin_path:String,bin_sha256:String,output_directory:String,confirmed:bool,bin_stock:Option<bool>,sink:StreamSink<N20OperationEvent>)->Result<(),String> {
+    if !confirmed {let _=sink.add(operation_error("Explicit ordinary full-flash confirmation is required"));return Ok(());}
+    n20_flash_operation::begin_full(expected_vin,expected_software,bin_path,bin_sha256,output_directory,true,bin_stock,sink)
+}
+
+pub fn provide_n20_operation_key(request_id: String, key: Vec<u8>) -> Result<(), String> {
+    n20_flash_operation::provide_key(request_id, key)
+}
+
+pub fn reject_n20_operation_key(request_id: String, reason: String) -> Result<(), String> {
+    n20_flash_operation::reject_key(request_id, reason)
+}
+
+pub fn start_n20_flash_operation(
+    expected_vin: String,
+    expected_software: String,
+    bin_path: String,
+    bin_sha256: String,
+    output_directory: String,
+    confirmed: bool,
+    bin_stock:Option<bool>,
+    sink: StreamSink<N20OperationEvent>,
+) -> Result<(), String> {
+    if !confirmed {
+        let _ = sink.add(operation_error(
+            "Explicit operation confirmation is required",
+        ));
+        return Ok(());
+    }
+    n20_flash_operation::begin(
+        expected_vin,
+        expected_software,
+        bin_path,
+        bin_sha256,
+        output_directory,
+        true,
+        bin_stock,
+        sink,
+    )
+}
+
+/// Local evidence inspection; does not connect to a DME or resume programming.
+pub fn list_n20_saved_operations(
+    root_directory: String,
+    expected_vin: String,
+) -> Result<String, String> {
+    serde_json::to_string(&crate::n20_operation_history::list(
+        std::path::Path::new(&root_directory),
+        &expected_vin,
+    )?)
+    .map_err(|e| e.to_string())
+}
+pub fn query_n20_programming_preconditions(
+    expected_vin: String,
+    expected_software: String,
+    output_directory: String,
+    confirmed: bool,
+    sink: StreamSink<N20OperationEvent>,
+) -> Result<(), String> {
+    if !confirmed {
+        let _ = sink.add(operation_error(
+            "Explicit condition-query confirmation is required",
+        ));
+        return Ok(());
+    }
+    n20_flash_operation::query_preconditions(
+        expected_vin,
+        expected_software,
+        output_directory,
+        sink,
+    )
+}
+
+pub fn prepare_n20_recovery_operation(
+    expected_vin: String,
+    bin_sha256: String,
+    plan_path: String,
+    output_directory: String,
+    sink: StreamSink<N20OperationEvent>,
+) -> Result<(), String> {
+    n20_flash_operation::begin_recovery(
+        expected_vin,
+        bin_sha256,
+        plan_path,
+        output_directory,
+        false,
+        sink,
+    )
+}
+pub fn start_n20_recovery_operation(
+    expected_vin: String,
+    bin_sha256: String,
+    plan_path: String,
+    output_directory: String,
+    confirmed: bool,
+    sink: StreamSink<N20OperationEvent>,
+) -> Result<(), String> {
+    if !confirmed {
+        let _ = sink.add(operation_error(
+            "Explicit recovery confirmation is required",
+        ));
+        return Ok(());
+    }
+    n20_flash_operation::begin_recovery(
+        expected_vin,
+        bin_sha256,
+        plan_path,
+        output_directory,
+        true,
+        sink,
+    )
+}
+
+/// Local review only: does not contact a DME or authorize recovery writes.
+pub fn prepare_n20_recovery_plan(
+    expected_vin: String,
+    bin_path: String,
+    bin_sha256: String,
+    original_operation_directory: String,
+    output_directory: String,
+) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let hash = |bytes: &[u8]| format!("{:x}", Sha256::digest(bytes));
+    let image = crate::n20_recovery::RecoveryImage::from_bin(
+        std::fs::read(&bin_path).map_err(|e| e.to_string())?,
+        &bin_sha256,
+    )?;
+    let source = std::path::Path::new(&original_operation_directory);
+    let operation_bytes =
+        std::fs::read(source.join("operation.json")).map_err(|e| e.to_string())?;
+    let operation: Value = serde_json::from_slice(&operation_bytes).map_err(|e| e.to_string())?;
+    if (operation["schema"] != "n20-operation-v1" && operation["schema"]!="n20-full-operation-v1") || operation["vin"] != expected_vin {
+        return Err("Original operation VIN or schema differs".into());
+    }
+    let original_bin = std::fs::read(source.join("selected.bin")).map_err(|e| e.to_string())?;
+    let original_hash = operation["bin_sha256"]
+        .as_str()
+        .ok_or("Missing original image hash")?;
+    let original_image = crate::n20_partial::PartialImage::from_bin(original_bin, original_hash)?;
+    if original_image.software_token != image.partial().software_token {
+        return Err("Recovery software differs from the original operation image".into());
+    }
+    let coding_bytes = std::fs::read(source.join("coding.json")).map_err(|e| e.to_string())?;
+    if operation["schema"]=="n20-full-operation-v1" {
+        let sidecar:Value=serde_json::from_slice(&std::fs::read(source.join("coding-binding.json")).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
+        if sidecar["operation_binding_sha256"]!=format!("{:X}",Sha256::digest(&operation_bytes)) || sidecar["coding_sha256"]!=hash(&coding_bytes) {
+            return Err("Original full-flash coding binding differs".into());
+        }
+    }
+    let coding_value: Value = serde_json::from_slice(&coding_bytes).map_err(|e| e.to_string())?;
+    crate::n20_coding::CodingSnapshot::from_manifest(&coding_value, &expected_vin)?;
+    let mut plan = image.manifest();
+    plan["vin"] = json!(expected_vin);
+    plan["original_operation_sha256"] = json!(hash(&operation_bytes));
+    plan["original_coding_sha256"] = json!(hash(&coding_bytes));
+    plan["original_operation_directory"] = json!(original_operation_directory);
+    plan["original_software"] = operation["software"].clone();
+    plan["original_bootloader"] = operation["bootloader"].clone();
+    plan["original_hardware"] = operation["hardware"].clone();
+    plan["status"] = json!("blocked: no reviewed full-rewrite recovery profile");
+    let root = std::path::Path::new(&output_directory);
+    std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let directory = root.join(format!("n20-recovery-review-{stamp}"));
+    std::fs::create_dir(&directory).map_err(|e| e.to_string())?;
+    for (name, bytes) in [
+        (
+            "recovery-plan.json",
+            serde_json::to_vec_pretty(&plan).map_err(|e| e.to_string())?,
+        ),
+        ("original-operation.json", operation_bytes),
+        ("original-coding.json", coding_bytes),
+        ("selected.bin", image.partial().bytes().to_vec()),
+    ] {
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(directory.join(name))
+            .map_err(|e| e.to_string())?;
+        file.write_all(&bytes)
+            .and_then(|_| file.sync_all())
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(directory
+        .join("recovery-plan.json")
+        .to_string_lossy()
+        .into_owned())
+}
+
 const TESTER: u8 = 0xF4;
 // The confirmed F82/S55 engine ECU is addressed at 0x12. Address 0x10 is the
 // gateway and must not be used as DME identity evidence.
@@ -547,6 +824,141 @@ pub fn read_dme_memory(address: u32, length: u16, expected_vin: String) -> Resul
         Duration::from_secs(3),
     )?;
     Ok(parse_ista_memory_read_response(&response, length as usize)?.to_vec())
+}
+
+/// Read-only live preparation for the documented N20 bench DME. No session
+/// changes, security access, erase, coding writes or downloads are issued.
+pub fn read_n20_flash_coding_backup(
+    expected_vin: String,
+    expected_software: String,
+    bin_path: String,
+    bin_sha256: String,
+    output_directory: String,
+) -> Result<String, String> {
+    use crate::n20_setup::ControlChannel;
+    if expected_vin != N20_BENCH_VIN || expected_software.is_empty() {
+        return Err("Coding preparation is limited to the documented N20 bench identity".into());
+    }
+    let bytes = std::fs::read(&bin_path).map_err(|e| e.to_string())?;
+    let image = crate::n20_partial::PartialImage::from_bin(bytes, &bin_sha256)?;
+    // The narrow initial live path is tied to the existing captured N20 profile.
+    if image.software_token != "00001C9F1D9601" {
+        return Err("Selected BIN software is outside the documented N20 bench profile".into());
+    }
+    let _access = crate::vehicle_access::vehicle_access().diagnostic()?;
+    let host = last_vehicle_host().ok_or("No active vehicle endpoint")?;
+    let mut stream = fresh_diagnostic_stream(&host)?;
+    if !validate_bm3_read_vehicle(&mut stream)? {
+        return Err("Expected the N20 bench DME".into());
+    }
+    let (vin, _, fingerprint, _, _) = identify_engine(&mut stream)?;
+    if vin != expected_vin || fingerprint.software != expected_software {
+        return Err("Fresh DME identity differs from the page session snapshot".into());
+    }
+    let sequence = N20_BACKUP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_millis();
+    let root = std::path::Path::new(&output_directory);
+    std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
+    let operation = root.join(format!(
+        "n20-coding-{timestamp}-{}-{sequence}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&operation).map_err(|e| e.to_string())?;
+    let mut wire = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(operation.join("read-exchanges.jsonl"))
+        .map_err(|e| e.to_string())?;
+    writeln!(
+        wire,
+        "{}",
+        json!({"schema": "n20-coding-read-v1", "vin": expected_vin,
+        "software": fingerprint.software, "bin_sha256": image.sha256,
+        "captured_unix_ms": timestamp.to_string()})
+    )
+    .and_then(|_| wire.sync_all())
+    .map_err(|e| e.to_string())?;
+    struct Reader<'a> {
+        stream: &'a mut TcpStream,
+        wire: &'a mut std::fs::File,
+    }
+    impl ControlChannel for Reader<'_> {
+        fn exchange(
+            &mut self,
+            target: u8,
+            request: &[u8],
+            timeout: Duration,
+        ) -> Result<Vec<u8>, String> {
+            validate_n20_coding_read_request(target, request)?;
+            writeln!(
+                self.wire,
+                "{}",
+                json!({"intent": hex_payload(request), "target": target})
+            )
+            .and_then(|_| self.wire.sync_all())
+            .map_err(|e| e.to_string())?;
+            send_uds(self.stream, target, request)?;
+            let reply = read_manual_uds_response(self.stream, target, 0x22, timeout)?;
+            writeln!(
+                self.wire,
+                "{}",
+                json!({"response": hex_payload(&reply), "source": target})
+            )
+            .and_then(|_| self.wire.sync_all())
+            .map_err(|e| e.to_string())?;
+            Ok(reply)
+        }
+    }
+    let snapshot = crate::n20_coding::CodingSnapshot::read(
+        &mut Reader {
+            stream: &mut stream,
+            wire: &mut wire,
+        },
+        &expected_vin,
+        Duration::from_secs(5),
+    )
+    .map_err(|e| format!("{e}. Read evidence retained in {}", operation.display()))?;
+    let manifest = json!({
+        "schema": "bimmerscope-n20-flash-preparation-v1",
+        "captured_unix_ms": timestamp.to_string(),
+        "vin": vin, "software": fingerprint.software,
+        "bootloader": fingerprint.bootloader, "calibration": fingerprint.calibration,
+        "bin_sha256": image.sha256, "bin_software": image.software_token,
+        "coding": snapshot.manifest(), "programming_authorized": false,
+        "full_ecu_backup": false, "recovery_validated": false,
+    });
+    let path = operation.join("coding-backup.json");
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|e| e.to_string())?;
+    file.write_all(
+        serde_json::to_string_pretty(&manifest)
+            .map_err(|e| e.to_string())?
+            .as_bytes(),
+    )
+    .and_then(|_| file.sync_all())
+    .map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+static N20_BACKUP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+fn validate_n20_coding_read_request(target: u8, request: &[u8]) -> Result<(), String> {
+    if target == ENGINE_ECU_ADDRESS
+        && matches!(
+            request,
+            [0x22, 0xf1, 0x90] | [0x22, 0x33, 0x20] | [0x22, 0x33, 0x50] | [0x22, 0x33, 0x51]
+        )
+    {
+        Ok(())
+    } else {
+        Err("Coding backup channel permits only DME VIN and 3320/3350/3351 reads".into())
+    }
 }
 
 /// Send one physical UDS request. The caller supplies UDS bytes only; ENET
@@ -2899,9 +3311,8 @@ fn discover_vehicle(stop: &AtomicBool) -> Option<String> {
         }
     }
 
-    // Ethernet-only discovery: restrict automatic subnet probing to the
-    // link-local range used by direct BMW ENET connections. Wi-Fi adapter
-    // networks are intentionally deferred until a later transport milestone.
+    // Preserve direct ENET link-local discovery and include bounded Android
+    // USB Ethernet tethering subnets. Wi-Fi subnets are not added.
     let mut local_subnets = discovery_subnets();
     // Keep distinct interface addresses; Windows may need to route probes
     // through its ENET adapter even when other link-local adapters exist.
@@ -2967,18 +3378,36 @@ fn discovery_subnets() -> Vec<(u32, u32, u32)> {
             .into_iter()
             .flatten()
             .filter_map(|interface| match interface.addr {
-                IfAddr::V4(address) if address.ip.is_link_local() => {
-                    let mask = u32::from(address.netmask);
-                    (mask.count_ones() >= 16).then_some((
-                        u32::from(address.ip) & mask,
-                        mask,
-                        u32::from(address.ip),
-                    ))
-                }
+                IfAddr::V4(address) => discovery_interface_subnet(
+                    &interface.name,
+                    address.ip,
+                    address.netmask,
+                    cfg!(target_os = "android"),
+                ),
                 _ => None,
             })
             .collect()
     }
+}
+
+fn discovery_interface_subnet(
+    name: &str,
+    ip: std::net::Ipv4Addr,
+    netmask: std::net::Ipv4Addr,
+    android: bool,
+) -> Option<(u32, u32, u32)> {
+    let mask = u32::from(netmask);
+    let prefix = mask.leading_ones();
+    if mask != u32::MAX.checked_shl(32 - prefix).unwrap_or(0) {
+        return None;
+    }
+    let ethernet = ["eth", "usb", "rndis"].iter().any(|prefix| {
+        name.strip_prefix(prefix)
+            .is_some_and(|suffix| !suffix.is_empty() && suffix.bytes().all(|b| b.is_ascii_digit()))
+    });
+    let direct = ip.is_link_local() && prefix >= 16;
+    let tethered = android && ethernet && is_private_ipv4(ip) && (24..=30).contains(&prefix);
+    (direct || tethered).then_some((u32::from(ip) & mask, mask, u32::from(ip)))
 }
 
 #[cfg(windows)]
@@ -2988,12 +3417,10 @@ fn windows_link_local_subnets() -> Vec<(u32, u32, u32)> {
     use std::ptr::{null, null_mut};
     use windows_sys::Win32::Foundation::{ERROR_BUFFER_OVERFLOW, ERROR_SUCCESS};
     use windows_sys::Win32::NetworkManagement::IpHelper::{
-        GetAdaptersAddresses, IP_ADAPTER_ADDRESSES_LH, GAA_FLAG_INCLUDE_PREFIX,
-        GAA_FLAG_SKIP_ANYCAST, GAA_FLAG_SKIP_DNS_SERVER, GAA_FLAG_SKIP_MULTICAST,
+        GetAdaptersAddresses, GAA_FLAG_INCLUDE_PREFIX, GAA_FLAG_SKIP_ANYCAST,
+        GAA_FLAG_SKIP_DNS_SERVER, GAA_FLAG_SKIP_MULTICAST, IP_ADAPTER_ADDRESSES_LH,
     };
-    use windows_sys::Win32::Networking::WinSock::{
-        AF_INET, IpDadStatePreferred, SOCKADDR_IN,
-    };
+    use windows_sys::Win32::Networking::WinSock::{IpDadStatePreferred, AF_INET, SOCKADDR_IN};
 
     let flags = GAA_FLAG_SKIP_ANYCAST
         | GAA_FLAG_SKIP_MULTICAST
@@ -3051,9 +3478,8 @@ fn windows_link_local_subnets() -> Vec<(u32, u32, u32)> {
                 if address.DadState == IpDadStatePreferred && address.OnLinkPrefixLength >= 16 {
                     let socket_address = address.Address.lpSockaddr.cast::<SOCKADDR_IN>();
                     if !socket_address.is_null() && (*socket_address).sin_family == AF_INET {
-                        let ip = Ipv4Addr::from(
-                            (*socket_address).sin_addr.S_un.S_addr.to_ne_bytes(),
-                        );
+                        let ip =
+                            Ipv4Addr::from((*socket_address).sin_addr.S_un.S_addr.to_ne_bytes());
                         let prefix = address.OnLinkPrefixLength;
                         if ip.is_link_local() && prefix <= 30 {
                             let mask = u32::MAX << (32 - u32::from(prefix));
@@ -4458,14 +4884,14 @@ struct DownloadHsfzTransport {
     sid: Option<u8>,
 }
 
-impl crate::uds_download::DownloadTransport for DownloadHsfzTransport {
-    fn send(&mut self, bytes: &[u8], deadline: Instant) -> Result<(), String> {
+impl DownloadHsfzTransport {
+    fn send_packet(&mut self, bytes: &[u8], deadline: Instant) -> Result<(), String> {
         if self.sid.is_some() || !self.frames.is_empty() || !self.buffer.is_empty() {
             return Err("Previous exchange has unresolved data".into());
         }
-        let sid = *bytes.first().ok_or("Empty download request")?;
-        if !matches!(sid, 0x34 | 0x36 | 0x37) {
-            return Err("Unsupported download service".into());
+        let sid = *bytes.first().ok_or("Empty request")?;
+        if bytes.len() > 4096 {
+            return Err("Request exceeds supported transport size".into());
         }
         self.sid = Some(sid);
         let packet = build_hsfz(self.tester, self.target, bytes);
@@ -4485,6 +4911,15 @@ impl crate::uds_download::DownloadTransport for DownloadHsfzTransport {
             remaining = &remaining[count..];
         }
         Ok(())
+    }
+}
+
+impl crate::uds_download::DownloadTransport for DownloadHsfzTransport {
+    fn send(&mut self, bytes: &[u8], deadline: Instant) -> Result<(), String> {
+        if !matches!(bytes.first(), Some(0x34 | 0x36 | 0x37)) {
+            return Err("Unsupported download service".into());
+        }
+        self.send_packet(bytes, deadline)
     }
 
     fn receive(&mut self, deadline: Instant) -> Result<Vec<u8>, String> {
@@ -4642,6 +5077,26 @@ mod tests {
             build_hsfz(0xF4, 0x10, &[0x22, 0xF1, 0x90]),
             vec![0, 0, 0, 5, 0, 1, 0xF4, 0x10, 0x22, 0xF1, 0x90]
         );
+    }
+
+    #[test]
+    fn discovery_preserves_pixel_link_local_and_adds_poco_ethernet_only() {
+        let subnet = |name: &str, ip: &str, mask: &str, android| {
+            discovery_interface_subnet(name, ip.parse().unwrap(), mask.parse().unwrap(), android)
+        };
+        assert!(subnet("eth0", "169.254.42.10", "255.255.0.0", true).is_some());
+        assert!(subnet("eth0", "169.254.42.10", "255.255.0.0", false).is_some());
+        let poco = subnet("eth0", "10.20.154.18", "255.255.255.0", true).unwrap();
+        assert_eq!(std::net::Ipv4Addr::from(poco.0).to_string(), "10.20.154.0");
+        assert!(subnet("usb0", "192.168.42.1", "255.255.255.0", true).is_some());
+        assert!(subnet("rndis0", "172.20.1.1", "255.255.255.0", true).is_some());
+        for name in ["wlan0", "ap0", "tun0", "ccmni0", "ethernet-vpn"] {
+            assert!(subnet(name, "10.20.154.18", "255.255.255.0", true).is_none());
+        }
+        assert!(subnet("eth0", "10.20.154.18", "255.255.255.0", false).is_none());
+        assert!(subnet("eth0", "10.20.154.18", "255.255.0.0", true).is_none());
+        assert!(subnet("eth0", "8.8.8.8", "255.255.255.0", true).is_none());
+        assert!(subnet("eth0", "10.20.154.18", "255.0.255.0", true).is_none());
     }
 
     #[test]
@@ -5262,6 +5717,33 @@ mod tests {
         assert_eq!(frames[0].uds_hex, "62 F1 90 57");
         assert!(frames[0].application_response);
         assert!(!frames[1].application_response);
+    }
+
+    #[test]
+    fn n20_coding_channel_rejects_writes_sessions_other_routes_and_identifiers() {
+        for request in [
+            vec![0x22, 0xf1, 0x90],
+            vec![0x22, 0x33, 0x20],
+            vec![0x22, 0x33, 0x50],
+            vec![0x22, 0x33, 0x51],
+        ] {
+            assert!(validate_n20_coding_read_request(0x12, &request).is_ok());
+            assert!(validate_n20_coding_read_request(0x17, &request).is_err());
+        }
+        for request in [
+            vec![],
+            vec![0x10, 2],
+            vec![0x27, 0x11],
+            vec![0x2e, 0x33, 0x20, 1],
+            vec![0x31, 1, 0xff, 0],
+            vec![0x34, 0, 0x44],
+            vec![0x36, 1],
+            vec![0x37],
+            vec![0x22, 0x33, 0x52],
+            vec![0x22, 0x33, 0x20, 0],
+        ] {
+            assert!(validate_n20_coding_read_request(0x12, &request).is_err());
+        }
     }
 
     #[test]
